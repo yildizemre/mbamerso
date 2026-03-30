@@ -17,6 +17,8 @@ const POS_LIST: Position[] = ['GK', 'DEF', 'MID', 'FWD'];
 interface TeamAcc {
   players: Player[];
   veterans: number;
+  /** Takımdaki veteranların mevkilere göre dağılımı */
+  vetPos: Record<Position, number>;
   females: number;
   sumRating: number;
   sumAge: number;
@@ -38,6 +40,7 @@ function emptyAcc(): TeamAcc {
   return {
     players: [],
     veterans: 0,
+    vetPos: { GK: 0, DEF: 0, MID: 0, FWD: 0 },
     females: 0,
     sumRating: 0,
     sumAge: 0,
@@ -61,12 +64,16 @@ function cloneAcc(a: TeamAcc): TeamAcc {
     ...a,
     players: [...a.players],
     pos: { ...a.pos },
+    vetPos: { ...a.vetPos },
   };
 }
 
 function addPlayer(acc: TeamAcc, p: Player): void {
   acc.players.push(p);
-  if (isVeteranPlayer(p)) acc.veterans++;
+  if (isVeteranPlayer(p)) {
+    acc.veterans++;
+    acc.vetPos[p.position]++;
+  }
   if (p.gender === 'female') acc.females++;
   acc.sumRating += p.rating;
 
@@ -104,6 +111,7 @@ function marginalPenalty(
   p: Player,
   ideal: {
     veterans: number;
+    vetPos: Record<Position, number>;
     females: number;
     /** Havuzdaki oyuncu rating ortalaması; n kişilik kadro hedef toplamı = n × bu değer */
     globalAvgPlayerRating: number;
@@ -127,18 +135,24 @@ function marginalPenalty(
   let pen = 0;
   const W = {
     vet: 45,
+    /** Veteranların mevkilere göre de eşit dağılması (örn. veteran DEF'ler her takıma yayılır) */
+    vetPos: 18,
     female: 28,
     /** Ortalama rating dengeyi güçlendirir (diğer eksenlerle yarışır) */
-    rating: 0.22,
+    rating: 1.05,
     age: 1.2,
     h: 0.04,
     w: 0.045,
     foot: 6,
-    pos: 4,
+    /** Mevki dağılımı futbol için kritik: GK/DEF/MID/FWD takım başına dengeli */
+    pos: 14,
     collar: 10,
   };
 
   pen += W.vet * sq(next.veterans - ideal.veterans);
+  for (const pos of POS_LIST) {
+    pen += W.vetPos * sq(next.vetPos[pos] - ideal.vetPos[pos]);
+  }
   pen += W.female * sq(next.females - ideal.females);
   const targetSumRating = ideal.globalAvgPlayerRating * n;
   pen += W.rating * sq(next.sumRating - targetSumRating);
@@ -212,6 +226,7 @@ function pinOneGkPerFootballTeam(
 function buildIdealPerTeam(players: Player[], teamCount: number): {
   ideal: {
     veterans: number;
+    vetPos: Record<Position, number>;
     females: number;
     globalAvgPlayerRating: number;
     avgAge: number;
@@ -240,9 +255,13 @@ function buildIdealPerTeam(players: Player[], teamCount: number): {
     white = 0,
     blue = 0;
   const pos: Record<Position, number> = { GK: 0, DEF: 0, MID: 0, FWD: 0 };
+  const vetPos: Record<Position, number> = { GK: 0, DEF: 0, MID: 0, FWD: 0 };
 
   for (const p of players) {
-    if (isVeteranPlayer(p)) veterans++;
+    if (isVeteranPlayer(p)) {
+      veterans++;
+      vetPos[p.position]++;
+    }
     if (p.gender === 'female') females++;
     sumRating += p.rating;
     const age = playerAgeYears(p);
@@ -278,6 +297,12 @@ function buildIdealPerTeam(players: Player[], teamCount: number): {
   return {
     ideal: {
       veterans: veterans / tc,
+      vetPos: {
+        GK: vetPos.GK / tc,
+        DEF: vetPos.DEF / tc,
+        MID: vetPos.MID / tc,
+        FWD: vetPos.FWD / tc,
+      },
       females: females / tc,
       globalAvgPlayerRating,
       avgAge,
