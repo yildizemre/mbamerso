@@ -20,7 +20,7 @@ import {
 } from '../utils/teamPlayerFilters';
 import { useSport } from '../context/SportContext';
 import { defaultTeamSizeForSport, maxTeamsForSport } from '../utils/sports';
-import { isVeteranPlayer } from '../utils/playerDerivedStats';
+import { isVeteranPlayer, playerAgeYears } from '../utils/playerDerivedStats';
 import { saveSquad, loadSquad, clearSquad } from '../utils/squadStorage';
 
 interface TeamsPageProps {
@@ -162,6 +162,24 @@ function ratingClass(r: number): string {
   if (r >= 80) return 'text-emerald-400';
   if (r >= 65) return 'text-yellow-400';
   return 'text-orange-400';
+}
+
+function teamVeteranCount(players: Player[]): number {
+  return players.reduce((acc, p) => acc + (isVeteranPlayer(p) ? 1 : 0), 0);
+}
+
+function teamAvgAge(players: Player[]): number | null {
+  let sum = 0;
+  let c = 0;
+  for (const p of players) {
+    const age = playerAgeYears(p);
+    if (age != null) {
+      sum += age;
+      c++;
+    }
+  }
+  if (c === 0) return null;
+  return Math.round((sum / c) * 10) / 10;
 }
 
 function TeamPlayerDetail({ player, index }: { player: Player; index: number }) {
@@ -1019,6 +1037,21 @@ export default function TeamsPage({ players }: TeamsPageProps) {
                     <span className={`text-sm font-semibold tabular-nums ${ratingClass(calculateTeamRating(team.players))}`}>
                       {calculateTeamRating(team.players)}
                     </span>
+                  </div>
+
+                  <div className="mb-3 grid grid-cols-2 gap-2">
+                    <div className="flex items-center justify-between rounded-lg bg-white/5 px-3 py-2">
+                      <span className="text-xs text-zinc-400">Ort. yaş</span>
+                      <span className="text-xs font-semibold tabular-nums text-zinc-200">
+                        {teamAvgAge(team.players) ?? '—'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-lg bg-white/5 px-3 py-2">
+                      <span className="text-xs text-zinc-400">Veteran</span>
+                      <span className="text-xs font-semibold tabular-nums text-amber-300">
+                        {teamVeteranCount(team.players)}
+                      </span>
+                    </div>
                   </div>
 
                   <ul className="max-h-[min(70vh,28rem)] space-y-2 overflow-y-auto pr-0.5">

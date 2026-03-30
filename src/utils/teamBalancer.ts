@@ -192,6 +192,53 @@ function accHasGk(acc: TeamAcc): boolean {
   return acc.players.some(isGoalkeeperPlayer);
 }
 
+function splitVeterans(players: Player[]): { veterans: Player[]; nonVeterans: Player[] } {
+  const veterans: Player[] = [];
+  const nonVeterans: Player[] = [];
+  for (const p of players) {
+    (isVeteranPlayer(p) ? veterans : nonVeterans).push(p);
+  }
+  return { veterans, nonVeterans };
+}
+
+/**
+ * Veteranları mümkün olduğunca eşit dağıt:
+ * - Her adımda veteran sayısı en az olan takımı seç
+ * - Kapasiteyi ve (Futbol) takım başına 1 kaleci kuralını bozma
+ */
+function distributeVeteransEvenly(
+  teams: TeamAcc[],
+  caps: number[],
+  veterans: Player[],
+  sport?: string
+): void {
+  const ordered = [...veterans].sort((a, b) => b.rating - a.rating);
+  const T = teams.length;
+
+  for (const p of ordered) {
+    let bestIdx = -1;
+    for (let i = 0; i < T; i++) {
+      if (teams[i].players.length >= caps[i]) continue;
+      if (sport === 'Futbol' && isGoalkeeperPlayer(p) && accHasGk(teams[i])) continue;
+
+      if (bestIdx < 0) {
+        bestIdx = i;
+        continue;
+      }
+
+      const a = teams[i];
+      const b = teams[bestIdx];
+      if (a.veterans < b.veterans) bestIdx = i;
+      else if (a.veterans === b.veterans) {
+        if (a.players.length < b.players.length) bestIdx = i;
+        else if (a.players.length === b.players.length && i < bestIdx) bestIdx = i;
+      }
+    }
+
+    if (bestIdx >= 0) addPlayer(teams[bestIdx], p);
+  }
+}
+
 /** Futbol: önce takım başına en fazla 1 kaleci (liste sırası + puana göre); fazla kaleciler sahaya karışır */
 /** n oyuncuyu T takıma üst sınır maxPerTeam ile mümkün olduğunca eşit böler (sum = min(n, T*max)) */
 export function getTeamSlotCaps(totalPlayers: number, teamCount: number, maxPerTeam: number): number[] {
@@ -362,7 +409,12 @@ function generateTournamentTeams(
   const poolForPhase2 =
     sport === 'Futbol' ? pinOneGkPerFootballTeam(teams, caps, players) : [...players];
 
-  const ordered = [...poolForPhase2].sort((a, b) => b.rating - a.rating);
+  // Faz 1: Veteranları olabildiğince eşit yay (kural: herkesin veteran sayısı yakın olsun)
+  const { veterans: veteranPool, nonVeterans: nonVeteranPool } = splitVeterans(poolForPhase2);
+  distributeVeteransEvenly(teams, caps, veteranPool, sport);
+
+  // Faz 2: Kalan oyuncuları çok eksenli dengeyle doldur
+  const ordered = [...nonVeteranPool].sort((a, b) => b.rating - a.rating);
 
   for (const p of ordered) {
     let bestIdx = -1;
