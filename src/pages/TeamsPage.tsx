@@ -37,6 +37,7 @@ const positionLabels: Record<Position, string> = {
 };
 
 const allPositions: Position[] = ['GK', 'DEF', 'MID', 'FWD'];
+const positionOrder: Record<Position, number> = { GK: 0, DEF: 1, MID: 2, FWD: 3 };
 
 function tryMovePlayer(
   teams: Team[],
@@ -180,6 +181,27 @@ function teamAvgAge(players: Player[]): number | null {
   }
   if (c === 0) return null;
   return Math.round((sum / c) * 10) / 10;
+}
+
+function sortedByPosition(players: Player[]): Player[] {
+  return [...players].sort((a, b) => {
+    const pa = positionOrder[a.position];
+    const pb = positionOrder[b.position];
+    if (pa !== pb) return pa - pb;
+    // Aynı mevkide daha güçlü oyuncu üstte
+    return b.rating - a.rating;
+  });
+}
+
+function teamPositionCounts(players: Player[]): Record<Position, number> {
+  const c: Record<Position, number> = { GK: 0, DEF: 0, MID: 0, FWD: 0 };
+  for (const p of players) c[p.position]++;
+  return c;
+}
+
+function teamPositionSummary(players: Player[]): string {
+  const c = teamPositionCounts(players);
+  return `Kaleci ${c.GK} · Defans ${c.DEF} · Orta Saha ${c.MID} · Forvet ${c.FWD}`;
 }
 
 function TeamPlayerDetail({ player, index }: { player: Player; index: number }) {
@@ -1054,8 +1076,17 @@ export default function TeamsPage({ players }: TeamsPageProps) {
                     </div>
                   </div>
 
+                  <div className="mb-3 rounded-lg bg-white/5 px-3 py-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs text-zinc-400">Mevki</span>
+                      <span className="text-[11px] font-medium text-zinc-200 tabular-nums">
+                        {teamPositionSummary(team.players)}
+                      </span>
+                    </div>
+                  </div>
+
                   <ul className="max-h-[min(70vh,28rem)] space-y-2 overflow-y-auto pr-0.5">
-                    {team.players.map((member, memberIdx) => (
+                    {sortedByPosition(team.players).map((member, memberIdx) => (
                       <TeamPlayerDetail key={member.id} player={member} index={memberIdx} />
                     ))}
                   </ul>

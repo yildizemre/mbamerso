@@ -7,6 +7,33 @@ const FONT_FAMILY = 'NotoSans';
 
 let notoFontBase64: string | null = null;
 
+const positionOrder: Record<string, number> = { GK: 0, DEF: 1, MID: 2, FWD: 3 };
+
+function sortedByPosition(players: Player[]): Player[] {
+  return [...players].sort((a, b) => {
+    const pa = positionOrder[a.position] ?? 99;
+    const pb = positionOrder[b.position] ?? 99;
+    if (pa !== pb) return pa - pb;
+    return b.rating - a.rating;
+  });
+}
+
+function positionCounts(players: Player[]): { GK: number; DEF: number; MID: number; FWD: number } {
+  const c = { GK: 0, DEF: 0, MID: 0, FWD: 0 };
+  for (const p of players) {
+    if (p.position === 'GK') c.GK++;
+    else if (p.position === 'DEF') c.DEF++;
+    else if (p.position === 'MID') c.MID++;
+    else if (p.position === 'FWD') c.FWD++;
+  }
+  return c;
+}
+
+function positionSummary(players: Player[]): string {
+  const c = positionCounts(players);
+  return `Kaleci ${c.GK} · Defans ${c.DEF} · Orta Saha ${c.MID} · Forvet ${c.FWD}`;
+}
+
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
   let binary = '';
@@ -67,10 +94,11 @@ export async function exportTeamsToPDF(
     const avgRating = n > 0 ? Math.round(team.players.reduce((sum, p) => sum + p.rating, 0) / n) : 0;
     doc.setFontSize(10);
     doc.text(`Ortalama Rating: ${avgRating}`, 14, yPosition + 6);
+    doc.text(positionSummary(team.players), 14, yPosition + 11);
 
-    yPosition += 12;
+    yPosition += 17;
 
-    const tableData = team.players.map((player, idx) => [
+    const tableData = sortedByPosition(team.players).map((player, idx) => [
       (idx + 1).toString(),
       player.excel ? String(player.excel.participantNo) : '-',
       player.name,
@@ -104,7 +132,7 @@ export async function exportTeamsToPDF(
     doc.text('Yedek Oyuncular', 14, yPosition);
     yPosition += 8;
 
-    const reserveData = reserves.map((player, idx) => [
+    const reserveData = sortedByPosition(reserves).map((player, idx) => [
       (idx + 1).toString(),
       player.excel ? String(player.excel.participantNo) : '-',
       player.name,
