@@ -239,6 +239,57 @@ function distributeVeteransEvenly(
   }
 }
 
+function assignedIdSet(teams: TeamAcc[]): Set<string> {
+  const s = new Set<string>();
+  for (const t of teams) for (const p of t.players) s.add(p.id);
+  return s;
+}
+
+/**
+ * Mevkileri (GK/DEF/MID/FWD) takım bazında mümkün olduğunca eşit dağıt.
+ * Not: Futbol'da GK zaten sabitleniyor; burada ağırlıkla DEF/MID/FWD hedeflenir.
+ */
+function distributePositionsEvenly(
+  teams: TeamAcc[],
+  caps: number[],
+  players: Player[],
+  sport?: string
+): void {
+  const T = teams.length;
+  const groups: Record<Position, Player[]> = { GK: [], DEF: [], MID: [], FWD: [] };
+  for (const p of players) groups[p.position].push(p);
+
+  const order: Position[] = sport === 'Futbol' ? ['DEF', 'MID', 'FWD'] : ['GK', 'DEF', 'MID', 'FWD'];
+
+  for (const pos of order) {
+    const ordered = [...groups[pos]].sort((a, b) => b.rating - a.rating);
+    for (const p of ordered) {
+      let bestIdx = -1;
+      for (let i = 0; i < T; i++) {
+        if (teams[i].players.length >= caps[i]) continue;
+        if (sport === 'Futbol' && isGoalkeeperPlayer(p) && accHasGk(teams[i])) continue;
+
+        if (bestIdx < 0) {
+          bestIdx = i;
+          continue;
+        }
+
+        const a = teams[i];
+        const b = teams[bestIdx];
+        // Öncelik: o mevkide az olan takıma ver
+        if (a.pos[pos] < b.pos[pos]) bestIdx = i;
+        else if (a.pos[pos] === b.pos[pos]) {
+          // Sonra: toplam kadrosu az olan takıma ver
+          if (a.players.length < b.players.length) bestIdx = i;
+          else if (a.players.length === b.players.length && i < bestIdx) bestIdx = i;
+        }
+      }
+
+      if (bestIdx >= 0) addPlayer(teams[bestIdx], p);
+    }
+  }
+}
+
 /** Futbol: önce takım başına en fazla 1 kaleci (liste sırası + puana göre); fazla kaleciler sahaya karışır */
 /** n oyuncuyu T takıma üst sınır maxPerTeam ile mümkün olduğunca eşit böler (sum = min(n, T*max)) */
 export function getTeamSlotCaps(totalPlayers: number, teamCount: number, maxPerTeam: number): number[] {
@@ -413,8 +464,15 @@ function generateTournamentTeams(
   const { veterans: veteranPool, nonVeterans: nonVeteranPool } = splitVeterans(poolForPhase2);
   distributeVeteransEvenly(teams, caps, veteranPool, sport);
 
-  // Faz 2: Kalan oyuncuları çok eksenli dengeyle doldur
-  const ordered = [...nonVeteranPool].sort((a, b) => b.rating - a.rating);
+  // Faz 2: Mevkileri mümkün olduğunca eşitle (DEF/MID/FWD; Futbol'da GK zaten sabit)
+  const assignedAfterVets = assignedIdSet(teams);
+  const remainingAfterVets = nonVeteranPool.filter((p) => !assignedAfterVets.has(p.id));
+  distributePositionsEvenly(teams, caps, remainingAfterVets, sport);
+
+  // Faz 3: Kalan oyuncuları çok eksenli dengeyle doldur
+  const assignedAfterPos = assignedIdSet(teams);
+  const remainingAfterPos = poolForPhase2.filter((p) => !assignedAfterPos.has(p.id));
+  const ordered = [...remainingAfterPos].sort((a, b) => b.rating - a.rating);
 
   for (const p of ordered) {
     let bestIdx = -1;
