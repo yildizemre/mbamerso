@@ -51,8 +51,8 @@ export interface RowToPlayerOptions {
 }
 
 /**
- * Turnuva Excel düzeni: 0 ID, 1 Start, 2 Completion, 3 Email, 4 Katılımcı No,
- * 5 Puanlama, 6 Doğum, 7 Statü, 8 Lokasyon, 9 Cinsiyet, 10 Boy, 11 Kilo, 12 Mevkiiler, 13 Ayak
+ * Eski sabit düzen (referans). 2026 numaralı şablonda araya "Kısım Numarası" gelir;
+ * uygulama satır başlıklarından otomatik sütun bulur (`excelFlexibleParser`).
  */
 export function playerFromTournamentExcelRow(
   row: unknown[],

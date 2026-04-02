@@ -3,6 +3,7 @@ import { playersFromSheetRows } from './excelFlexibleParser';
 import { PIVOT_SHEET_NAME } from './sports';
 import type { Player } from '../types/player';
 
+/** `public/` altına konmalı — 2026 İstanbul Spor Turnuvası katılımcı numaralı liste (çok sayfalı) */
 export const PARTICIPANTS_XLSX_FILENAME = '2026 İstanbul Spor Turnuvası Katılımcı Numaralı.xlsx';
 
 export function loadPlayersFromPublicXlsx(): Promise<Player[]> {

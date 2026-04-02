@@ -8,6 +8,8 @@ export interface ParticipantExcelRow {
   completionTime: string;
   email: string;
   participantNo: string | number;
+  /** 2026 numaralı listede: Kısım Numarası (ör. 1513) */
+  kisimNumarasi?: string | number | null;
   puanlamaRaw: string | number | null;
   dogumTarihi: string;
   statu: string;

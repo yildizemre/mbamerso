@@ -5,7 +5,7 @@ Modern, responsive ve özellik dolu bir futbol takımı oluşturma uygulaması.
 ## 🎯 Özellikler
 
 ### ✨ Temel Özellikler
-- **1080 Otomatik Oyuncu** - Uygulama açıldığında otomatik olarak 1080 benzersiz futbolcu oluşturulur
+- **2026 turnuva listesi** — `public/2026 İstanbul Spor Turnuvası Katılımcı Numaralı.xlsx` dosyası açılışta yüklenir (Futbol, Voleybol, … sekmeleri)
 - **Manuel Oyuncu Ekleme** - Kendi oyuncularınızı ekleyin
 - **Kategori Filtreleme** - Karışık, Sadece Erkek veya Sadece Kadın takımlar oluşturun
 - **Dinamik Takım Boyutu** - 5 ile 15 oyuncu arası takım büyüklüğü seçin (standart: 11)

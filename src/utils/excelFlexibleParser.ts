@@ -14,6 +14,8 @@ interface ColIx {
   end?: number;
   email?: number;
   kat?: number;
+  /** "Kısım Numarası" — 2026 katılımcı numaralı şablon */
+  kisim?: number;
   puan?: number;
   dogum?: number;
   statu?: number;
@@ -35,6 +37,12 @@ function buildColIx(headers: string[]): ColIx {
     if (s.includes('completion') && s.includes('time')) ix.end = i;
     if (s.includes('email')) ix.email = i;
     if (s.includes('katılımcı') || s.includes('katilimci')) ix.kat = i;
+    if (
+      (s.includes('kısım') || s.includes('kisim')) &&
+      (s.includes('numara') || s.includes('numarası') || s.includes('numarasi'))
+    ) {
+      if (!s.includes('katılımcı') && !s.includes('katilimci')) ix.kisim = i;
+    }
     if (s.includes('puanlama')) ix.puan = i;
     if (s.includes('doğum') || s.includes('dogum')) ix.dogum = i;
     if (s.includes('statü') || s.includes('statu')) ix.statu = i;
@@ -42,12 +50,32 @@ function buildColIx(headers: string[]): ColIx {
     if (s.includes('cinsiyet')) ix.cinsiyet = i;
     if (s.includes('boyunuz') || (s.includes('boy') && s.includes('cm'))) ix.boy = i;
     if (s.includes('kilonuz') || (s.includes('kilo') && s.includes('kg'))) ix.kilo = i;
-    if (s.includes('mevkiiler')) ix.mevki = i;
+    if (s.includes('mevki')) ix.mevki = i;
     if ((s.includes('baskın') || s.includes('baskin') || s.includes('ayağınız')) && !s.includes('katılmak')) {
       ix.ayak = i;
     }
     if (s.includes('katılmak') || s.includes('katilmak')) ix.katilim = i;
   });
+  // 2026 şablon: "Katılımcı Numarası" hemen ardından "Kısım Numarası" gelir (bazı ortamlarda başlık eşlemesi kaçarsa)
+  if (ix.kisim == null && ix.kat != null) {
+    const next = ix.kat + 1;
+    const rawNext = headers[next];
+    if (rawNext != null) {
+      const sn = String(rawNext).toLowerCase().trim();
+      if (
+        (sn.includes('kısım') || sn.includes('kisim')) &&
+        (sn.includes('numara') || sn.includes('numarası') || sn.includes('numarasi')) &&
+        !sn.includes('katılımcı') &&
+        !sn.includes('katilimci')
+      ) {
+        ix.kisim = next;
+      }
+    }
+  }
+  // 2026 numaralı şablon: Katılımcı(4) → Kısım(5) → Puanlama(6); eski şablonda Puanlama(5)
+  if (ix.kisim == null && ix.kat === 4 && ix.puan === 6) {
+    ix.kisim = 5;
+  }
   return ix;
 }
 
@@ -100,12 +128,15 @@ export function playersFromSheetRows(
         ? String(participantNo)
         : String(formId ?? i);
 
+    const kisimRaw = at(row, col.kisim);
     const excel: ParticipantExcelRow = {
       formId: formId as string | number,
       startTime: formatExcelCellDate(at(row, col.start ?? 1)),
       completionTime: formatExcelCellDate(at(row, col.end ?? 2)),
       email: String(at(row, col.email ?? 3) ?? '').trim(),
       participantNo: (hasParticipant ? participantNo : (formId ?? i)) as string | number,
+      kisimNumarasi:
+        kisimRaw === '' || kisimRaw == null ? null : (kisimRaw as string | number),
       puanlamaRaw:
         puanRaw === '' || puanRaw == null ? null : (puanRaw as string | number),
       dogumTarihi: formatExcelCellDate(dogumRaw),
