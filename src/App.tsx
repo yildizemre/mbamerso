@@ -5,6 +5,7 @@ import TeamsPage from './pages/TeamsPage';
 import PlayersPage from './pages/PlayersPage';
 import AddPlayerPage from './pages/AddPlayerPage';
 import LeaguePage from './pages/LeaguePage';
+import ReportsPage from './pages/ReportsPage';
 import LoginPage from './pages/LoginPage';
 import { Player } from './types/player';
 import { loadPlayersFromPublicXlsx } from './utils/loadParticipantsFromXlsx';
@@ -106,6 +107,7 @@ function App() {
               />
               <Route path="/add-player" element={<AddPlayerPage onAddPlayers={addPlayers} />} />
               <Route path="/league" element={<LeaguePage />} />
+              <Route path="/reports" element={<ReportsPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </div>

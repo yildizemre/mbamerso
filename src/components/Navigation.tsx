@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Users, UserPlus, Trophy, Moon, Sun, LayoutGrid } from 'lucide-react';
+import { Users, UserPlus, Trophy, Moon, Sun, LayoutGrid, ClipboardList } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useSport } from '../context/SportContext';
 
@@ -11,6 +11,7 @@ export default function Navigation() {
   const navItems = [
     { path: '/', label: 'Takımlar', icon: Trophy },
     { path: '/league', label: 'Lig', icon: LayoutGrid },
+    { path: '/reports', label: 'Raporlar', icon: ClipboardList },
     { path: '/players', label: 'Oyuncular', icon: Users },
     { path: '/add-player', label: 'Yeni Oyuncu', icon: UserPlus },
   ];
