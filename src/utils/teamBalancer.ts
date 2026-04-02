@@ -19,6 +19,54 @@ function usesAdvancedSquadRules(sport: string | undefined): boolean {
   return sport === 'Futbol' || sport === 'Voleybol';
 }
 
+type BalanceWeights = {
+  vet: number;
+  vetPos: number;
+  female: number;
+  rating: number;
+  age: number;
+  h: number;
+  w: number;
+  foot: number;
+  pos: number;
+  collar: number;
+};
+
+/** Turnuva ceza ağırlıkları: Basketbol’da rating + boy + yaş öne çıkar */
+function balanceWeights(sport: string | undefined): BalanceWeights {
+  const base: BalanceWeights = {
+    vet: 22,
+    vetPos: 8,
+    female: 22,
+    rating: 52,
+    age: 0.45,
+    h: 0.028,
+    w: 0.032,
+    foot: 4,
+    pos: 5,
+    collar: 6,
+  };
+  if (sport === 'Basketbol') {
+    return {
+      ...base,
+      vet: 5,
+      vetPos: 2,
+      female: 8,
+      rating: 56,
+      age: 1.35,
+      h: 0.095,
+      w: 0.018,
+      foot: 1,
+      pos: 2,
+      collar: 2,
+    };
+  }
+  if (sport === 'Voleybol') {
+    return { ...base, female: 42 };
+  }
+  return base;
+}
+
 interface TeamAcc {
   players: Player[];
   veterans: number;
@@ -129,7 +177,8 @@ function marginalPenalty(
     pos: Record<Position, number>;
     white: number;
     blue: number;
-  }
+  },
+  sport?: string
 ): number {
   const next = cloneAcc(acc);
   addPlayer(next, p);
@@ -138,20 +187,7 @@ function marginalPenalty(
   const sq = (x: number) => x * x;
 
   let pen = 0;
-  /** Ağırlıklar: önce takım rating ortalaması birbirine yakın; veteran/mevki/yaş idealden uzaklaşmayı hafif baskıla */
-  const W = {
-    vet: 22,
-    vetPos: 8,
-    female: 22,
-    /** Ana hedef: takım toplam rating’i ≈ havuz ort × kadro sayısı */
-    rating: 52,
-    age: 0.45,
-    h: 0.028,
-    w: 0.032,
-    foot: 4,
-    pos: 5,
-    collar: 6,
-  };
+  const W = balanceWeights(sport);
 
   pen += W.vet * sq(next.veterans - ideal.veterans);
   for (const pos of POS_LIST) {
@@ -259,6 +295,51 @@ function distributeVeteransEvenly(
   }
 }
 
+/**
+ * Voleybol: kadınları önce dağıt — her takımda mümkünse 2 kadın (en az kadınlı takıma öncelik).
+ * Veteran/kaleci sonrası kalan kadınlar için çalışır.
+ */
+function distributeFemalesForVolleyball(
+  teams: TeamAcc[],
+  caps: number[],
+  females: Player[],
+  sport: string | undefined
+): void {
+  if (sport !== 'Voleybol') return;
+  const ordered = [...females].sort((a, b) => b.rating - a.rating);
+  const T = teams.length;
+
+  for (const p of ordered) {
+    let bestIdx = -1;
+    for (let i = 0; i < T; i++) {
+      if (teams[i].players.length >= caps[i]) continue;
+      if (usesAdvancedSquadRules(sport) && isGoalkeeperPlayer(p) && accHasGk(teams[i])) continue;
+
+      if (bestIdx < 0) {
+        bestIdx = i;
+        continue;
+      }
+
+      const a = teams[i];
+      const b = teams[bestIdx];
+      if (a.females < b.females) bestIdx = i;
+      else if (a.females === b.females) {
+        if (a.sumRating < b.sumRating) bestIdx = i;
+        else if (a.sumRating === b.sumRating && a.players.length < b.players.length) bestIdx = i;
+        else if (
+          a.sumRating === b.sumRating &&
+          a.players.length === b.players.length &&
+          i < bestIdx
+        ) {
+          bestIdx = i;
+        }
+      }
+    }
+
+    if (bestIdx >= 0) addPlayer(teams[bestIdx], p);
+  }
+}
+
 /** Futbol/Voleybol: önce takım başına en fazla 1 kaleci (liste sırası + puana göre); fazla kaleciler sahaya karışır */
 /** n oyuncuyu T takıma üst sınır maxPerTeam ile mümkün olduğunca eşit böler (sum = min(n, T*max)) */
 export function getTeamSlotCaps(totalPlayers: number, teamCount: number, maxPerTeam: number): number[] {
@@ -296,7 +377,11 @@ function pinOneGkPerFootballTeam(
   return [...field, ...restGks];
 }
 
-function buildIdealPerTeam(players: Player[], teamCount: number): {
+function buildIdealPerTeam(
+  players: Player[],
+  teamCount: number,
+  sport?: string
+): {
   ideal: {
     veterans: number;
     vetPos: Record<Position, number>;
@@ -367,6 +452,10 @@ function buildIdealPerTeam(players: Player[], teamCount: number): {
   const globalAvgWeight = wCount > 0 ? sumW / wCount : 0;
   const globalAvgPlayerRating = players.length > 0 ? sumRating / players.length : 0;
 
+  /** Voleybol: takım başına en fazla 2 kadın hedefi (havuz yeterliyse) */
+  const femalesPerTeamIdeal =
+    sport === 'Voleybol' ? Math.min(2, females / tc) : females / tc;
+
   return {
     ideal: {
       veterans: veterans / tc,
@@ -376,7 +465,7 @@ function buildIdealPerTeam(players: Player[], teamCount: number): {
         MID: vetPos.MID / tc,
         FWD: vetPos.FWD / tc,
       },
-      females: females / tc,
+      females: femalesPerTeamIdeal,
       globalAvgPlayerRating,
       avgAge,
       globalAvgHeight,
@@ -428,7 +517,7 @@ function generateTournamentTeams(
 
   const caps = getTeamSlotCaps(players.length, teamCount, teamSize);
 
-  const { ideal } = buildIdealPerTeam(players, teamCount);
+  const { ideal } = buildIdealPerTeam(players, teamCount, sport);
 
   const teams: TeamAcc[] = Array.from({ length: teamCount }, () => emptyAcc());
 
@@ -439,6 +528,11 @@ function generateTournamentTeams(
 
   const { veterans: veteranPool } = splitVeterans(poolAfterGk);
   distributeVeteransEvenly(teams, caps, veteranPool, sport);
+
+  const afterVets = assignedIdSet(teams);
+  const afterVetPool = poolAfterGk.filter((p) => !afterVets.has(p.id));
+  const femalePool = afterVetPool.filter((p) => p.gender === 'female');
+  distributeFemalesForVolleyball(teams, caps, femalePool, sport);
 
   const placed = assignedIdSet(teams);
   const remaining = poolAfterGk.filter((p) => !placed.has(p.id));
@@ -451,7 +545,7 @@ function generateTournamentTeams(
     for (let i = 0; i < teamCount; i++) {
       if (teams[i].players.length >= caps[i]) continue;
       if (usesAdvancedSquadRules(sport) && isGoalkeeperPlayer(p) && accHasGk(teams[i])) continue;
-      const pen = marginalPenalty(teams[i], p, ideal);
+      const pen = marginalPenalty(teams[i], p, ideal, sport);
       let take = false;
       if (pen < bestPen) take = true;
       else if (pen === bestPen && bestIdx >= 0) {
@@ -514,6 +608,8 @@ function generateRatingTeams(
   const globalAvgPlayerRating =
     players.length > 0 ? players.reduce((s, p) => s + p.rating, 0) / players.length : 0;
 
+  const { ideal } = buildIdealPerTeam(players, teamCount, sport);
+
   let pool: Player[] = [...players];
   if (usesAdvancedSquadRules(sport)) {
     const { gks, field } = splitGkField(players);
@@ -529,6 +625,53 @@ function generateRatingTeams(
       gi++;
     }
     pool = [...field, ...gks.filter((p) => !assignedIds.has(p.id))];
+  }
+
+  if (sport === 'Voleybol') {
+    const fem = pool.filter((p) => p.gender === 'female');
+    const rest = pool.filter((p) => p.gender !== 'female');
+    const femSorted = [...fem].sort((a, b) => b.rating - a.rating);
+    const placedFem = new Set<string>();
+    for (const player of femSorted) {
+      const candidates = teams
+        .map((t, i) => ({ i, len: t.players.length, r: teamRatings[i] }))
+        .filter((x) => x.len < caps[x.i])
+        .filter(
+          (x) =>
+            !(
+              usesAdvancedSquadRules(sport) &&
+              isGoalkeeperPlayer(player) &&
+              teams[x.i].players.some(isGoalkeeperPlayer)
+            )
+        );
+      if (candidates.length === 0) continue;
+
+      let bestIdx = -1;
+      let bestKey: [number, number] = [Infinity, Infinity];
+      for (const c of candidates) {
+        const fc = teams[c.i].players.filter((p) => p.gender === 'female').length;
+        const newLen = c.len + 1;
+        const newSum = teamRatings[c.i] + player.rating;
+        const targetSum = globalAvgPlayerRating * newLen;
+        const pen = (newSum - targetSum) ** 2;
+        const key: [number, number] = [fc, pen];
+        if (
+          bestIdx < 0 ||
+          key[0] < bestKey[0] ||
+          (key[0] === bestKey[0] && key[1] < bestKey[1]) ||
+          (key[0] === bestKey[0] && key[1] === bestKey[1] && c.i < bestIdx)
+        ) {
+          bestKey = key;
+          bestIdx = c.i;
+        }
+      }
+      if (bestIdx < 0) continue;
+      teams[bestIdx].players.push(player);
+      teamRatings[bestIdx] += player.rating;
+      placedFem.add(player.id);
+    }
+    const unplacedFem = femSorted.filter((p) => !placedFem.has(p.id));
+    pool = [...rest, ...unplacedFem];
   }
 
   const sortedPlayers = [...pool].sort((a, b) => b.rating - a.rating);
@@ -550,10 +693,17 @@ function generateRatingTeams(
     let bestIdx = -1;
     let bestPen = Number.POSITIVE_INFINITY;
     for (const c of candidates) {
-      const newSum = c.r + player.rating;
-      const newLen = c.len + 1;
-      const targetSum = globalAvgPlayerRating * newLen;
-      const pen = (newSum - targetSum) ** 2;
+      let pen: number;
+      if (sport === 'Basketbol') {
+        const acc = emptyAcc();
+        for (const pl of teams[c.i].players) addPlayer(acc, pl);
+        pen = marginalPenalty(acc, player, ideal, sport);
+      } else {
+        const newSum = c.r + player.rating;
+        const newLen = c.len + 1;
+        const targetSum = globalAvgPlayerRating * newLen;
+        pen = (newSum - targetSum) ** 2;
+      }
       if (pen < bestPen) {
         bestPen = pen;
         bestIdx = c.i;
@@ -592,6 +742,50 @@ function generateShuffleTeams(
 
   const caps = getTeamSlotCaps(players.length, teamCount, teamSize);
 
+  const { ideal } = buildIdealPerTeam(players, teamCount, sport);
+
+  /** Basketbol: sıra karışık ama yerleştirme rating + boy + yaş dengesine göre (turnuva cezası) */
+  if (sport === 'Basketbol') {
+    const teamsAcc: TeamAcc[] = Array.from({ length: teamCount }, () => emptyAcc());
+    const shuffledB = fisherYatesShuffle([...players]);
+    for (const p of shuffledB) {
+      let bestIdx = -1;
+      let bestPen = Number.POSITIVE_INFINITY;
+      for (let i = 0; i < teamCount; i++) {
+        if (teamsAcc[i].players.length >= caps[i]) continue;
+        const pen = marginalPenalty(teamsAcc[i], p, ideal, sport);
+        let take = false;
+        if (pen < bestPen) take = true;
+        else if (pen === bestPen && bestIdx >= 0) {
+          const a = teamsAcc[i];
+          const b = teamsAcc[bestIdx];
+          if (a.players.length < b.players.length) take = true;
+          else if (a.players.length === b.players.length && a.sumRating < b.sumRating) take = true;
+          else if (
+            a.players.length === b.players.length &&
+            a.sumRating === b.sumRating &&
+            i < bestIdx
+          ) {
+            take = true;
+          }
+        }
+        if (take) {
+          bestPen = pen;
+          bestIdx = i;
+        }
+      }
+      if (bestIdx >= 0) addPlayer(teamsAcc[bestIdx], p);
+    }
+    const outTeams: Team[] = teamsAcc.map((t, i) => ({
+      id: i + 1,
+      name: `Takım ${i + 1}`,
+      players: fisherYatesShuffle(t.players),
+    }));
+    const allAssigned = outTeams.flatMap((t) => t.players);
+    const reserves = players.filter((p) => !allAssigned.includes(p));
+    return { teams: outTeams, reserves };
+  }
+
   const teams: Team[] = Array.from({ length: teamCount }, (_, i) => ({
     id: i + 1,
     name: `Takım ${i + 1}`,
@@ -612,6 +806,35 @@ function generateShuffleTeams(
       gi++;
     }
     pool = [...field, ...gks.filter((p) => !assignedIds.has(p.id))];
+  }
+
+  if (sport === 'Voleybol') {
+    const fem = pool.filter((p) => p.gender === 'female');
+    const rest = pool.filter((p) => p.gender !== 'female');
+    const femShuf = fisherYatesShuffle(fem);
+    const unplacedFem: Player[] = [];
+    for (const p of femShuf) {
+      let bestI = -1;
+      let bestFc = Infinity;
+      for (let i = 0; i < teamCount; i++) {
+        if (teams[i].players.length >= caps[i]) continue;
+        if (
+          usesAdvancedSquadRules(sport) &&
+          isGoalkeeperPlayer(p) &&
+          teams[i].players.some(isGoalkeeperPlayer)
+        ) {
+          continue;
+        }
+        const fc = teams[i].players.filter((x) => x.gender === 'female').length;
+        if (fc < bestFc || (fc === bestFc && (bestI < 0 || i < bestI))) {
+          bestFc = fc;
+          bestI = i;
+        }
+      }
+      if (bestI >= 0) teams[bestI].players.push(p);
+      else unplacedFem.push(p);
+    }
+    pool = fisherYatesShuffle([...rest, ...unplacedFem]);
   }
 
   const shuffled = fisherYatesShuffle(pool);

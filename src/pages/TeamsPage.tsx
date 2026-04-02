@@ -567,8 +567,11 @@ export default function TeamsPage({ players }: TeamsPageProps) {
             sayılır. Takımlarda veteran / genç, cinsiyet, boy, kilo, baskın ayak, yaş ortalaması, statü
             (beyaz/mavi yaka tahmini), mevki ve puanlama (geçen sezon başarısı) mümkün olduğunca eşit
             dağıtılır. <strong className="text-zinc-300">Futbol ve Voleybol:</strong> formda kaleci olanlar önce
-            takımlara ayrılır (takım başına 1 kaleci); aynı veteran ve rating dengesi kuralları geçerli. Üst takım
-            sayısı branşa göre (Futbol 13, Voleybol 12); kadro eksik olabilir. Ligde ilk 4 çeyrek final.
+            takımlara ayrılır (takım başına 1 kaleci); aynı veteran ve rating dengesi kuralları geçerli.{' '}
+            <strong className="text-zinc-300">Voleybol:</strong> mümkün olduğunca her takımda 2 kadın.{' '}
+            <strong className="text-zinc-300">Basketbol:</strong> takımlar arası rating, boy ve yaş ortalaması
+            dengelenir. Üst takım sayısı branşa göre (Futbol 13, Voleybol 12); kadro eksik olabilir. Ligde ilk 4
+            çeyrek final.
           </p>
         </div>
 
