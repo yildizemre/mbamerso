@@ -14,6 +14,11 @@ export type BalanceMode = 'shuffle' | 'rating' | 'tournament';
 
 const POS_LIST: Position[] = ['GK', 'DEF', 'MID', 'FWD'];
 
+/** Futbol + Voleybol: aynı kadro denge kuralları (kaleci önceliği, veteran fazı, rating cezası, …) */
+function usesAdvancedSquadRules(sport: string | undefined): boolean {
+  return sport === 'Futbol' || sport === 'Voleybol';
+}
+
 interface TeamAcc {
   players: Player[];
   veterans: number;
@@ -133,20 +138,19 @@ function marginalPenalty(
   const sq = (x: number) => x * x;
 
   let pen = 0;
+  /** Ağırlıklar: önce takım rating ortalaması birbirine yakın; veteran/mevki/yaş idealden uzaklaşmayı hafif baskıla */
   const W = {
-    vet: 45,
-    /** Veteranların mevkilere göre de eşit dağılması (örn. veteran DEF'ler her takıma yayılır) */
-    vetPos: 18,
-    female: 28,
-    /** Ortalama rating dengeyi güçlendirir (diğer eksenlerle yarışır) */
-    rating: 1.05,
-    age: 1.2,
-    h: 0.04,
-    w: 0.045,
-    foot: 6,
-    /** Mevki dağılımı futbol için kritik: GK/DEF/MID/FWD takım başına dengeli */
-    pos: 14,
-    collar: 10,
+    vet: 22,
+    vetPos: 8,
+    female: 22,
+    /** Ana hedef: takım toplam rating’i ≈ havuz ort × kadro sayısı */
+    rating: 52,
+    age: 0.45,
+    h: 0.028,
+    w: 0.032,
+    foot: 4,
+    pos: 5,
+    collar: 6,
   };
 
   pen += W.vet * sq(next.veterans - ideal.veterans);
@@ -201,10 +205,15 @@ function splitVeterans(players: Player[]): { veterans: Player[]; nonVeterans: Pl
   return { veterans, nonVeterans };
 }
 
+function assignedIdSet(teams: TeamAcc[]): Set<string> {
+  const s = new Set<string>();
+  for (const t of teams) for (const p of t.players) s.add(p.id);
+  return s;
+}
+
 /**
- * Veteranları mümkün olduğunca eşit dağıt:
- * - Her adımda veteran sayısı en az olan takımı seç
- * - Kapasiteyi ve (Futbol) takım başına 1 kaleci kuralını bozma
+ * Veteranları takımlara mümkün olduğunca eşit: önce az veteranlı takım,
+ * eşitse bu mevkide az veteranlı takım, sonra düşük toplam rating (yıldız yayılımı).
  */
 function distributeVeteransEvenly(
   teams: TeamAcc[],
@@ -216,10 +225,11 @@ function distributeVeteransEvenly(
   const T = teams.length;
 
   for (const p of ordered) {
+    const pos = p.position;
     let bestIdx = -1;
     for (let i = 0; i < T; i++) {
       if (teams[i].players.length >= caps[i]) continue;
-      if (sport === 'Futbol' && isGoalkeeperPlayer(p) && accHasGk(teams[i])) continue;
+      if (usesAdvancedSquadRules(sport) && isGoalkeeperPlayer(p) && accHasGk(teams[i])) continue;
 
       if (bestIdx < 0) {
         bestIdx = i;
@@ -230,8 +240,18 @@ function distributeVeteransEvenly(
       const b = teams[bestIdx];
       if (a.veterans < b.veterans) bestIdx = i;
       else if (a.veterans === b.veterans) {
-        if (a.players.length < b.players.length) bestIdx = i;
-        else if (a.players.length === b.players.length && i < bestIdx) bestIdx = i;
+        if (a.vetPos[pos] < b.vetPos[pos]) bestIdx = i;
+        else if (a.vetPos[pos] === b.vetPos[pos]) {
+          if (a.sumRating < b.sumRating) bestIdx = i;
+          else if (a.sumRating === b.sumRating && a.players.length < b.players.length) bestIdx = i;
+          else if (
+            a.sumRating === b.sumRating &&
+            a.players.length === b.players.length &&
+            i < bestIdx
+          ) {
+            bestIdx = i;
+          }
+        }
       }
     }
 
@@ -239,58 +259,7 @@ function distributeVeteransEvenly(
   }
 }
 
-function assignedIdSet(teams: TeamAcc[]): Set<string> {
-  const s = new Set<string>();
-  for (const t of teams) for (const p of t.players) s.add(p.id);
-  return s;
-}
-
-/**
- * Mevkileri (GK/DEF/MID/FWD) takım bazında mümkün olduğunca eşit dağıt.
- * Not: Futbol'da GK zaten sabitleniyor; burada ağırlıkla DEF/MID/FWD hedeflenir.
- */
-function distributePositionsEvenly(
-  teams: TeamAcc[],
-  caps: number[],
-  players: Player[],
-  sport?: string
-): void {
-  const T = teams.length;
-  const groups: Record<Position, Player[]> = { GK: [], DEF: [], MID: [], FWD: [] };
-  for (const p of players) groups[p.position].push(p);
-
-  const order: Position[] = sport === 'Futbol' ? ['DEF', 'MID', 'FWD'] : ['GK', 'DEF', 'MID', 'FWD'];
-
-  for (const pos of order) {
-    const ordered = [...groups[pos]].sort((a, b) => b.rating - a.rating);
-    for (const p of ordered) {
-      let bestIdx = -1;
-      for (let i = 0; i < T; i++) {
-        if (teams[i].players.length >= caps[i]) continue;
-        if (sport === 'Futbol' && isGoalkeeperPlayer(p) && accHasGk(teams[i])) continue;
-
-        if (bestIdx < 0) {
-          bestIdx = i;
-          continue;
-        }
-
-        const a = teams[i];
-        const b = teams[bestIdx];
-        // Öncelik: o mevkide az olan takıma ver
-        if (a.pos[pos] < b.pos[pos]) bestIdx = i;
-        else if (a.pos[pos] === b.pos[pos]) {
-          // Sonra: toplam kadrosu az olan takıma ver
-          if (a.players.length < b.players.length) bestIdx = i;
-          else if (a.players.length === b.players.length && i < bestIdx) bestIdx = i;
-        }
-      }
-
-      if (bestIdx >= 0) addPlayer(teams[bestIdx], p);
-    }
-  }
-}
-
-/** Futbol: önce takım başına en fazla 1 kaleci (liste sırası + puana göre); fazla kaleciler sahaya karışır */
+/** Futbol/Voleybol: önce takım başına en fazla 1 kaleci (liste sırası + puana göre); fazla kaleciler sahaya karışır */
 /** n oyuncuyu T takıma üst sınır maxPerTeam ile mümkün olduğunca eşit böler (sum = min(n, T*max)) */
 export function getTeamSlotCaps(totalPlayers: number, teamCount: number, maxPerTeam: number): number[] {
   const T = Math.max(1, teamCount);
@@ -309,13 +278,19 @@ function pinOneGkPerFootballTeam(
   const { gks, field } = splitGkField(players);
   const gksSorted = [...gks].sort((a, b) => b.rating - a.rating);
   const assignedIds = new Set<string>();
-  let gi = 0;
-  for (let t = 0; t < T && gi < gksSorted.length; t++) {
-    if (caps[t] < 1) continue;
+  const eligible: number[] = [];
+  for (let t = 0; t < T; t++) if (caps[t] >= 1) eligible.push(t);
+  const L = eligible.length;
+  if (L === 0) return [...field, ...gks];
+  /** En yüksek kaleci hep Takım 1’e gitmesin: takım indekslerine karışık (coprime adım) eşleme */
+  let step = 7;
+  const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b));
+  while (step < 50 && gcd(step, L) !== 1) step++;
+  for (let gi = 0; gi < gksSorted.length && gi < L; gi++) {
+    const t = eligible[(gi * step) % L];
     const p = gksSorted[gi];
     addPlayer(teams[t], p);
     assignedIds.add(p.id);
-    gi++;
   }
   const restGks = gks.filter((p) => !assignedIds.has(p.id));
   return [...field, ...restGks];
@@ -457,22 +432,17 @@ function generateTournamentTeams(
 
   const teams: TeamAcc[] = Array.from({ length: teamCount }, () => emptyAcc());
 
-  const poolForPhase2 =
-    sport === 'Futbol' ? pinOneGkPerFootballTeam(teams, caps, players) : [...players];
+  /** Futbol/Voleybol: kaleciler sabit → veteranlar → kalanlar rating/mevki/yaş dengesi */
+  const poolAfterGk = usesAdvancedSquadRules(sport)
+    ? pinOneGkPerFootballTeam(teams, caps, players)
+    : [...players];
 
-  // Faz 1: Veteranları olabildiğince eşit yay (kural: herkesin veteran sayısı yakın olsun)
-  const { veterans: veteranPool, nonVeterans: nonVeteranPool } = splitVeterans(poolForPhase2);
+  const { veterans: veteranPool } = splitVeterans(poolAfterGk);
   distributeVeteransEvenly(teams, caps, veteranPool, sport);
 
-  // Faz 2: Mevkileri mümkün olduğunca eşitle (DEF/MID/FWD; Futbol'da GK zaten sabit)
-  const assignedAfterVets = assignedIdSet(teams);
-  const remainingAfterVets = nonVeteranPool.filter((p) => !assignedAfterVets.has(p.id));
-  distributePositionsEvenly(teams, caps, remainingAfterVets, sport);
-
-  // Faz 3: Kalan oyuncuları çok eksenli dengeyle doldur
-  const assignedAfterPos = assignedIdSet(teams);
-  const remainingAfterPos = poolForPhase2.filter((p) => !assignedAfterPos.has(p.id));
-  const ordered = [...remainingAfterPos].sort((a, b) => b.rating - a.rating);
+  const placed = assignedIdSet(teams);
+  const remaining = poolAfterGk.filter((p) => !placed.has(p.id));
+  const ordered = [...remaining].sort((a, b) => b.rating - a.rating);
 
   for (const p of ordered) {
     let bestIdx = -1;
@@ -480,9 +450,24 @@ function generateTournamentTeams(
 
     for (let i = 0; i < teamCount; i++) {
       if (teams[i].players.length >= caps[i]) continue;
-      if (sport === 'Futbol' && isGoalkeeperPlayer(p) && accHasGk(teams[i])) continue;
+      if (usesAdvancedSquadRules(sport) && isGoalkeeperPlayer(p) && accHasGk(teams[i])) continue;
       const pen = marginalPenalty(teams[i], p, ideal);
-      if (pen < bestPen || (pen === bestPen && (bestIdx < 0 || teams[i].players.length < teams[bestIdx].players.length))) {
+      let take = false;
+      if (pen < bestPen) take = true;
+      else if (pen === bestPen && bestIdx >= 0) {
+        const a = teams[i];
+        const b = teams[bestIdx];
+        if (a.players.length < b.players.length) take = true;
+        else if (a.players.length === b.players.length && a.sumRating < b.sumRating) take = true;
+        else if (
+          a.players.length === b.players.length &&
+          a.sumRating === b.sumRating &&
+          i < bestIdx
+        ) {
+          take = true;
+        }
+      }
+      if (take) {
         bestPen = pen;
         bestIdx = i;
       }
@@ -530,7 +515,7 @@ function generateRatingTeams(
     players.length > 0 ? players.reduce((s, p) => s + p.rating, 0) / players.length : 0;
 
   let pool: Player[] = [...players];
-  if (sport === 'Futbol') {
+  if (usesAdvancedSquadRules(sport)) {
     const { gks, field } = splitGkField(players);
     const gksSorted = [...gks].sort((a, b) => b.rating - a.rating);
     const assignedIds = new Set<string>();
@@ -555,7 +540,7 @@ function generateRatingTeams(
       .filter(
         (x) =>
           !(
-            sport === 'Futbol' &&
+            usesAdvancedSquadRules(sport) &&
             isGoalkeeperPlayer(player) &&
             teams[x.i].players.some(isGoalkeeperPlayer)
           )
@@ -614,7 +599,7 @@ function generateShuffleTeams(
   }));
 
   let pool: Player[] = [...players];
-  if (sport === 'Futbol') {
+  if (usesAdvancedSquadRules(sport)) {
     const { gks, field } = splitGkField(players);
     const gksSorted = [...gks].sort((a, b) => b.rating - a.rating);
     const assignedIds = new Set<string>();
@@ -637,7 +622,11 @@ function generateShuffleTeams(
     for (let tries = 0; tries < teamCount && !placed; tries++) {
       const i = (rr + tries) % teamCount;
       if (teams[i].players.length >= caps[i]) continue;
-      if (sport === 'Futbol' && isGoalkeeperPlayer(p) && teams[i].players.some(isGoalkeeperPlayer)) {
+      if (
+        usesAdvancedSquadRules(sport) &&
+        isGoalkeeperPlayer(p) &&
+        teams[i].players.some(isGoalkeeperPlayer)
+      ) {
         continue;
       }
       teams[i].players.push(p);

@@ -26,10 +26,10 @@ export const DEFAULT_TEAM_SIZE_BY_SPORT: Record<string, number> = {
   Satranç: 4,
 };
 
-/** Branş başına üst takım sayısı (futbol 13, voleybol 8 …) */
+/** Branş başına üst takım sayısı (futbol 13, voleybol 12 …) */
 export const MAX_TEAMS_BY_SPORT: Record<string, number> = {
   Futbol: 13,
-  Voleybol: 8,
+  Voleybol: 12,
 };
 
 export const DEFAULT_TEAM_SIZE_FALLBACK = 10;

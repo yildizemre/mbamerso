@@ -70,6 +70,7 @@
 
 .light .app-shell {
   background-color: rgb(250 250 250);
+  color: rgb(24 24 27);
   background-image:
     radial-gradient(ellipse 80% 50% at 50% -20%, rgba(16, 185, 129, 0.12), transparent 55%),
     radial-gradient(ellipse 50% 30% at 100% 0%, rgba(59, 130, 246, 0.05), transparent 50%);
@@ -129,6 +130,101 @@
   color: rgb(39 39 42);
 }
 
+/* Aydınlık mod: koyu arka planda kalan sınıflar (zinc-600, zinc-200, …) */
+.light .text-zinc-50 {
+  color: rgb(24 24 27);
+}
+
+.light .text-zinc-200 {
+  color: rgb(24 24 27);
+}
+
+.light .text-zinc-600 {
+  color: rgb(63 63 70);
+}
+
+/* Rating / vurgu renkleri: açık zeminde koyu ton */
+.light .text-emerald-200 {
+  color: rgb(6 95 70);
+}
+
+.light .text-emerald-300 {
+  color: rgb(5 120 85);
+}
+
+.light .text-emerald-400 {
+  color: rgb(4 120 87);
+}
+
+.light .text-emerald-400\/90 {
+  color: rgb(4 120 87);
+}
+
+.light .text-emerald-500\/80 {
+  color: rgb(5 120 85);
+}
+
+.light .text-yellow-400 {
+  color: rgb(161 98 7);
+}
+
+.light .text-orange-400 {
+  color: rgb(194 65 12);
+}
+
+.light .text-amber-300 {
+  color: rgb(146 64 14);
+}
+
+.light .text-amber-400\/90 {
+  color: rgb(146 64 14);
+}
+
+.light .text-amber-200\/90 {
+  color: rgb(120 53 15);
+}
+
+.light .text-amber-200\/95 {
+  color: rgb(120 53 15);
+}
+
+.light .text-amber-200\/80 {
+  color: rgb(120 53 15);
+}
+
+.light .text-amber-500\/90 {
+  color: rgb(146 64 14);
+}
+
+.light .text-red-300 {
+  color: rgb(185 28 28);
+}
+
+.light .text-red-400 {
+  color: rgb(185 28 28);
+}
+
+.light .text-emerald-400\/95 {
+  color: rgb(4 120 87);
+}
+
+.light .text-amber-300\/90 {
+  color: rgb(146 64 14);
+}
+
+.light .text-emerald-500\/70 {
+  color: rgb(5 120 85);
+}
+
+/* Hover ile açılan açık renkler (PDF, butonlar) */
+.light .hover\:text-emerald-200:hover {
+  color: rgb(6 95 70);
+}
+
+.light .hover\:text-red-300:hover {
+  color: rgb(185 28 28);
+}
+
 .light .border-zinc-800 {
   border-color: rgba(0, 0, 0, 0.06);
 }
@@ -143,6 +239,10 @@
 
 .light .input-modern {
   @apply border-black/10 bg-white text-zinc-900 placeholder-zinc-400;
+}
+
+.light .placeholder\:text-zinc-600::placeholder {
+  color: rgb(113 113 122);
 }
 
 @layer utilities {

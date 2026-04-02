@@ -209,18 +209,18 @@ function TeamPlayerDetail({ player, index }: { player: Player; index: number }) 
   return (
     <li className="rounded-lg border border-white/5 bg-white/[0.03] p-2.5 transition-colors hover:bg-white/[0.06]">
       <div className="flex gap-2">
-        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-zinc-800 text-[10px] font-medium tabular-nums text-zinc-400">
+        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-zinc-800 text-[10px] font-medium tabular-nums text-zinc-300">
           {index + 1}
         </div>
         <div className="min-w-0 flex-1 space-y-1.5">
           <div className="flex items-start justify-between gap-2">
             <div className="flex min-w-0 items-center gap-1.5">
               {player.gender === 'male' ? (
-                <MaleIcon className="h-3 w-3 shrink-0 text-zinc-500" strokeWidth={1.5} />
+                <MaleIcon className="h-3 w-3 shrink-0 text-zinc-400" strokeWidth={1.5} />
               ) : (
-                <FemaleIcon className="h-3 w-3 shrink-0 text-zinc-500" strokeWidth={1.5} />
+                <FemaleIcon className="h-3 w-3 shrink-0 text-zinc-400" strokeWidth={1.5} />
               )}
-              <span className="truncate text-xs font-medium text-zinc-100" title={player.name}>
+              <span className="truncate text-xs font-medium text-zinc-50" title={player.name}>
                 {player.name}
               </span>
             </div>
@@ -233,54 +233,54 @@ function TeamPlayerDetail({ player, index }: { player: Player; index: number }) 
               )}
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-zinc-400">
+          <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-zinc-200">
             <span className="rounded border border-white/10 bg-white/5 px-1.5 py-0.5">
               {positionLabels[player.position]}
             </span>
             {isVeteranPlayer(player) && (
-              <span className="rounded border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-amber-400/90">
+              <span className="rounded border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-amber-300">
                 Veteran
               </span>
             )}
             {ex?.mevkiRaw && (
-              <span className="rounded border border-emerald-500/15 bg-emerald-500/5 px-1.5 py-0.5 text-emerald-400/90">
+              <span className="rounded border border-emerald-500/15 bg-emerald-500/5 px-1.5 py-0.5 text-emerald-300">
                 {ex.mevkiRaw}
               </span>
             )}
           </div>
           {ex ? (
             <dl className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 text-[10px] leading-snug">
-              <dt className="text-zinc-600">Kat. no</dt>
-              <dd className="truncate text-zinc-400 tabular-nums">{cell(ex.participantNo)}</dd>
-              <dt className="text-zinc-600">Lokasyon</dt>
-              <dd className="truncate text-zinc-400" title={ex.lokasyon}>
+              <dt className="text-zinc-400">Kat. no</dt>
+              <dd className="truncate text-zinc-100 tabular-nums">{cell(ex.participantNo)}</dd>
+              <dt className="text-zinc-400">Lokasyon</dt>
+              <dd className="truncate text-zinc-100" title={ex.lokasyon}>
                 {cell(ex.lokasyon)}
               </dd>
-              <dt className="text-zinc-600">Statü</dt>
-              <dd className="truncate text-zinc-400" title={ex.statu}>
+              <dt className="text-zinc-400">Statü</dt>
+              <dd className="truncate text-zinc-100" title={ex.statu}>
                 {cell(ex.statu)}
               </dd>
-              <dt className="text-zinc-600">Boy / kilo</dt>
-              <dd className="text-zinc-400 tabular-nums">
+              <dt className="text-zinc-400">Boy / kilo</dt>
+              <dd className="text-zinc-100 tabular-nums">
                 {ex.boyCm != null || ex.kiloKg != null
                   ? `${ex.boyCm != null ? `${ex.boyCm} cm` : '—'} · ${ex.kiloKg != null ? `${ex.kiloKg} kg` : '—'}`
                   : '—'}
               </dd>
-              <dt className="text-zinc-600">Doğum</dt>
-              <dd className="truncate text-zinc-400">{cell(ex.dogumTarihi)}</dd>
-              <dt className="text-zinc-600">Ayak</dt>
-              <dd className="text-zinc-400">{cell(ex.baskinAyak)}</dd>
+              <dt className="text-zinc-400">Doğum</dt>
+              <dd className="truncate text-zinc-100">{cell(ex.dogumTarihi)}</dd>
+              <dt className="text-zinc-400">Ayak</dt>
+              <dd className="text-zinc-100">{cell(ex.baskinAyak)}</dd>
               {ex.email ? (
                 <>
-                  <dt className="text-zinc-600">E-posta</dt>
-                  <dd className="truncate text-zinc-400" title={ex.email}>
+                  <dt className="text-zinc-400">E-posta</dt>
+                  <dd className="truncate text-zinc-100" title={ex.email}>
                     {ex.email}
                   </dd>
                 </>
               ) : null}
             </dl>
           ) : (
-            <p className="text-[10px] text-zinc-600">Ek detay yok</p>
+            <p className="text-[10px] text-zinc-400">Ek detay yok</p>
           )}
         </div>
       </div>
@@ -295,11 +295,11 @@ function ReservePlayerDetail({ player }: { player: Player }) {
       <div className="mb-2 flex items-start justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
           {player.gender === 'male' ? (
-            <MaleIcon className="h-3.5 w-3.5 shrink-0 text-zinc-500" strokeWidth={1.5} />
+            <MaleIcon className="h-3.5 w-3.5 shrink-0 text-zinc-400" strokeWidth={1.5} />
           ) : (
-            <FemaleIcon className="h-3.5 w-3.5 shrink-0 text-zinc-500" strokeWidth={1.5} />
+            <FemaleIcon className="h-3.5 w-3.5 shrink-0 text-zinc-400" strokeWidth={1.5} />
           )}
-          <span className="truncate text-xs font-medium text-zinc-200" title={player.name}>
+          <span className="truncate text-xs font-medium text-zinc-50" title={player.name}>
             {player.name}
           </span>
         </div>
@@ -309,26 +309,26 @@ function ReservePlayerDetail({ player }: { player: Player }) {
       </div>
       {ex ? (
         <dl className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 text-[10px] leading-snug">
-          <dt className="text-zinc-600">Kat.</dt>
-          <dd className="truncate text-zinc-400 tabular-nums">{cell(ex.participantNo)}</dd>
-          <dt className="text-zinc-600">Mevki</dt>
-          <dd className="text-zinc-400">
+          <dt className="text-zinc-400">Kat.</dt>
+          <dd className="truncate text-zinc-100 tabular-nums">{cell(ex.participantNo)}</dd>
+          <dt className="text-zinc-400">Mevki</dt>
+          <dd className="text-zinc-100">
             {positionLabels[player.position]}
             {ex.mevkiRaw ? ` · ${ex.mevkiRaw}` : ''}
           </dd>
-          <dt className="text-zinc-600">Lokasyon</dt>
-          <dd className="truncate text-zinc-400">{cell(ex.lokasyon)}</dd>
-          <dt className="text-zinc-600">Statü</dt>
-          <dd className="truncate text-zinc-400">{cell(ex.statu)}</dd>
-          <dt className="text-zinc-600">Boy / kilo</dt>
-          <dd className="text-zinc-400 tabular-nums">
+          <dt className="text-zinc-400">Lokasyon</dt>
+          <dd className="truncate text-zinc-100">{cell(ex.lokasyon)}</dd>
+          <dt className="text-zinc-400">Statü</dt>
+          <dd className="truncate text-zinc-100">{cell(ex.statu)}</dd>
+          <dt className="text-zinc-400">Boy / kilo</dt>
+          <dd className="text-zinc-100 tabular-nums">
             {ex.boyCm != null || ex.kiloKg != null
               ? `${ex.boyCm != null ? `${ex.boyCm} cm` : '—'} · ${ex.kiloKg != null ? `${ex.kiloKg} kg` : '—'}`
               : '—'}
           </dd>
         </dl>
       ) : (
-        <p className="text-[10px] text-zinc-600">Ek detay yok</p>
+        <p className="text-[10px] text-zinc-400">Ek detay yok</p>
       )}
     </div>
   );
@@ -566,9 +566,9 @@ export default function TeamsPage({ players }: TeamsPageProps) {
             <strong className="text-zinc-300">1986 ve öncesi doğumlular veteran</strong>, diğerleri genç
             sayılır. Takımlarda veteran / genç, cinsiyet, boy, kilo, baskın ayak, yaş ortalaması, statü
             (beyaz/mavi yaka tahmini), mevki ve puanlama (geçen sezon başarısı) mümkün olduğunca eşit
-            dağıtılır. <strong className="text-zinc-300">Futbol:</strong> formda kaleci olanlar önce takımlara
-            ayrılır (takım başına 1 kaleci); 13 takım × 14 kişi üst sınırı; kadro eksik olabilir. Ligde ilk 4 çeyrek
-            final.
+            dağıtılır. <strong className="text-zinc-300">Futbol ve Voleybol:</strong> formda kaleci olanlar önce
+            takımlara ayrılır (takım başına 1 kaleci); aynı veteran ve rating dengesi kuralları geçerli. Üst takım
+            sayısı branşa göre (Futbol 13, Voleybol 12); kadro eksik olabilir. Ligde ilk 4 çeyrek final.
           </p>
         </div>
 
