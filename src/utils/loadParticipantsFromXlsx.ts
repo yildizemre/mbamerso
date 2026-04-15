@@ -4,7 +4,7 @@ import { PIVOT_SHEET_NAME } from './sports';
 import type { Player } from '../types/player';
 
 /** `public/` altına konmalı — 2026 İstanbul Spor Turnuvası katılımcı numaralı liste (çok sayfalı) */
-export const PARTICIPANTS_XLSX_FILENAME = '2026 İstanbul Spor Turnuvası Katılımcı Numaralı.xlsx';
+export const PARTICIPANTS_XLSX_FILENAME = '2026 İstanbul Spor Turnuvası Katılımcı Numaralı3.xlsx';
 
 export function loadPlayersFromPublicXlsx(): Promise<Player[]> {
   const url = `${window.location.origin}/${encodeURIComponent(PARTICIPANTS_XLSX_FILENAME)}`;
