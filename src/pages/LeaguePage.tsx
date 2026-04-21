@@ -36,6 +36,17 @@ import KnockoutSection from '../components/KnockoutSection';
 export const YELLOW_FOR_SUSPENSION = 4;
 /** Futbol: bu kadar kırmızı kart = 1 maç men (en az 1 yeter) */
 export const RED_FOR_SUSPENSION = 1;
+const LEAGUE_START_DATE = new Date(2026, 4, 5); // 5 Mayıs 2026
+
+function trDate(d: Date): string {
+  return d.toLocaleDateString('tr-TR');
+}
+
+function roundDate(round: number): string {
+  const d = new Date(LEAGUE_START_DATE);
+  d.setDate(LEAGUE_START_DATE.getDate() + (round - 1) * 7);
+  return trDate(d);
+}
 
 function teamName(teams: Team[], id: number): string {
   return teams.find((t) => t.id === id)?.name ?? `Takım ${id}`;
@@ -222,6 +233,9 @@ export default function LeaguePage() {
               iç/dış saha ayrımı yok). Tüm branşlarda aynı lig fikstürü. Skorları haftaya göre girin;
               puan tablosu güncellenir.
             </p>
+            <p className="mt-1 text-xs text-zinc-500">
+              Lig başlangıcı: <strong className="text-zinc-300">{trDate(LEAGUE_START_DATE)}</strong>
+            </p>
           </div>
           <div className="flex flex-col items-end gap-1">
             <button
@@ -285,6 +299,7 @@ export default function LeaguePage() {
                 <div key={fr.round}>
                   <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2 border-b border-white/10 pb-2">
                     <h3 className="text-sm font-semibold text-emerald-400/95">{fr.label}</h3>
+                    <span className="text-[11px] text-zinc-500">{roundDate(fr.round)}</span>
                     {byeId != null && (
                       <span className="text-[11px] text-zinc-500">
                         Bay: <span className="text-zinc-400">{teamName(teams, byeId)}</span>
