@@ -65,20 +65,41 @@ function balanceWeights(sport: string | undefined): BalanceWeights {
   if (sport === 'Basketbol') {
     return {
       ...base,
-      vet: 5,
-      vetPos: 2,
-      female: 8,
-      rating: 56,
-      age: 1.35,
-      h: 0.095,
-      w: 0.018,
-      foot: 1,
-      pos: 2,
-      collar: 2,
+      // Basket öncelik sırası:
+      // 1) kişi sayısı (slot cap ile zaten zorunlu)
+      // 2) boy ortalaması dengesi
+      // 3) rating dengesi
+      // 4) yaş ortalaması dengesi
+      vet: 1,
+      vetPos: 0.5,
+      female: 1,
+      rating: 52,
+      age: 0.35,
+      h: 0.48,
+      w: 0.008,
+      foot: 0.3,
+      pos: 0.5,
+      collar: 0.5,
     };
   }
   if (sport === 'Voleybol') {
     return { ...base, female: 42 };
+  }
+  if (sport === 'Halat Çekme') {
+    return {
+      ...base,
+      // Halat çekmede ana denge: takım doluluğu + ortalama kilo dengesi (boy etkisi yok)
+      vet: 8,
+      vetPos: 1,
+      female: 6,
+      rating: 24,
+      age: 0.35,
+      h: 0,
+      w: 0.28,
+      foot: 0.5,
+      pos: 0.5,
+      collar: 1,
+    };
   }
   if (sport === 'Futbol') {
     return {
@@ -580,6 +601,176 @@ function rebalanceFootballPositionsBySwap(
   }
 }
 
+function avgHeight(players: Player[]): number | null {
+  let sum = 0;
+  let c = 0;
+  for (const p of players) {
+    if (p.excel?.boyCm != null) {
+      sum += p.excel.boyCm;
+      c++;
+    }
+  }
+  return c > 0 ? sum / c : null;
+}
+
+function avgRating(players: Player[]): number {
+  if (players.length === 0) return 0;
+  return players.reduce((s, p) => s + p.rating, 0) / players.length;
+}
+
+function avgWeight(players: Player[]): number | null {
+  let sum = 0;
+  let c = 0;
+  for (const p of players) {
+    if (p.excel?.kiloKg != null) {
+      sum += p.excel.kiloKg;
+      c++;
+    }
+  }
+  return c > 0 ? sum / c : null;
+}
+
+function avgAge(players: Player[]): number | null {
+  let sum = 0;
+  let c = 0;
+  for (const p of players) {
+    const a = playerAgeYears(p);
+    if (a != null) {
+      sum += a;
+      c++;
+    }
+  }
+  return c > 0 ? sum / c : null;
+}
+
+function rangeOf(nums: number[]): number {
+  if (nums.length === 0) return 0;
+  return Math.max(...nums) - Math.min(...nums);
+}
+
+function basketObjective(teams: Team[]): number {
+  const hs = teams.map((t) => avgHeight(t.players)).filter((v): v is number => v != null);
+  const rs = teams.map((t) => avgRating(t.players));
+  const as = teams.map((t) => avgAge(t.players)).filter((v): v is number => v != null);
+
+  // Öncelik: boy > yaş > rating
+  const hRange = rangeOf(hs);
+  const rRange = rangeOf(rs);
+  const aRange = rangeOf(as);
+  return hRange * 1000 + aRange * 40 + rRange * 8;
+}
+
+/**
+ * Basketbol: takım kişi sayısını bozmadan swap ile boy/rating/yaş dağılımını toparla.
+ * Öncelik boy farkını (max-min) küçültmek.
+ */
+function rebalanceBasketballBySwap(teams: Team[], sport?: string): void {
+  if (sport !== 'Basketbol' || teams.length < 2) return;
+
+  for (let iter = 0; iter < 400; iter++) {
+    const heights = teams.map((t, i) => ({ i, h: avgHeight(t.players) ?? -Infinity }));
+    const hi = heights.reduce((a, b) => (b.h > a.h ? b : a));
+    const lo = heights.reduce((a, b) => (b.h < a.h ? b : a));
+    if (!Number.isFinite(hi.h) || !Number.isFinite(lo.h) || hi.i === lo.i) break;
+
+    const a = teams[hi.i];
+    const b = teams[lo.i];
+    let bestDelta = 0;
+    let bestA = -1;
+    let bestB = -1;
+    const current = basketObjective(teams);
+
+    for (let ia = 0; ia < a.players.length; ia++) {
+      for (let ib = 0; ib < b.players.length; ib++) {
+        const pa = a.players[ia];
+        const pb = b.players[ib];
+        if (Math.abs(pa.rating - pb.rating) > 18) continue;
+
+        a.players[ia] = pb;
+        b.players[ib] = pa;
+        const next = basketObjective(teams);
+        const delta = current - next;
+        a.players[ia] = pa;
+        b.players[ib] = pb;
+
+        if (delta > bestDelta) {
+          bestDelta = delta;
+          bestA = ia;
+          bestB = ib;
+        }
+      }
+    }
+
+    if (bestDelta <= 0 || bestA < 0 || bestB < 0) break;
+    const pa = a.players[bestA];
+    const pb = b.players[bestB];
+    a.players[bestA] = pb;
+    b.players[bestB] = pa;
+  }
+}
+
+function tugObjective(teams: Team[]): number {
+  const ws = teams.map((t) => avgWeight(t.players)).filter((v): v is number => v != null);
+  const rs = teams.map((t) => avgRating(t.players));
+  const as = teams.map((t) => avgAge(t.players)).filter((v): v is number => v != null);
+  // Öncelik: kilo > rating > yaş
+  const wRange = rangeOf(ws);
+  const rRange = rangeOf(rs);
+  const aRange = rangeOf(as);
+  return wRange * 1000 + rRange * 25 + aRange * 6;
+}
+
+/**
+ * Halat çekme: kişi sayısını bozmadan takım ortalama kilolarını swap ile yakınlaştır.
+ */
+function rebalanceTugWeightBySwap(teams: Team[], sport?: string): void {
+  if (sport !== 'Halat Çekme' || teams.length < 2) return;
+
+  for (let iter = 0; iter < 400; iter++) {
+    const weights = teams.map((t, i) => ({ i, w: avgWeight(t.players) ?? -Infinity }));
+    const hi = weights.reduce((a, b) => (b.w > a.w ? b : a));
+    const lo = weights.reduce((a, b) => (b.w < a.w ? b : a));
+    if (!Number.isFinite(hi.w) || !Number.isFinite(lo.w) || hi.i === lo.i) break;
+
+    const a = teams[hi.i];
+    const b = teams[lo.i];
+    let bestDelta = 0;
+    let bestA = -1;
+    let bestB = -1;
+    const current = tugObjective(teams);
+
+    for (let ia = 0; ia < a.players.length; ia++) {
+      for (let ib = 0; ib < b.players.length; ib++) {
+        const pa = a.players[ia];
+        const pb = b.players[ib];
+        const wa = pa.excel?.kiloKg;
+        const wb = pb.excel?.kiloKg;
+        if (wa == null || wb == null) continue;
+        if (Math.abs(pa.rating - pb.rating) > 15) continue;
+
+        a.players[ia] = pb;
+        b.players[ib] = pa;
+        const next = tugObjective(teams);
+        const delta = current - next;
+        a.players[ia] = pa;
+        b.players[ib] = pb;
+
+        if (delta > bestDelta) {
+          bestDelta = delta;
+          bestA = ia;
+          bestB = ib;
+        }
+      }
+    }
+
+    if (bestDelta <= 0 || bestA < 0 || bestB < 0) break;
+    const pa = a.players[bestA];
+    const pb = b.players[bestB];
+    a.players[bestA] = pb;
+    b.players[bestB] = pa;
+  }
+}
+
 function accHasGk(acc: TeamAcc): boolean {
   return acc.players.some(isGoalkeeperPlayer);
 }
@@ -1039,6 +1230,8 @@ function generateTournamentTeams(
     players: fisherYatesShuffle(t.players),
   }));
   rebalanceFootballPositionsBySwap(outTeams, footballPositionTargets, sport);
+  rebalanceBasketballBySwap(outTeams, sport);
+  rebalanceTugWeightBySwap(outTeams, sport);
   outTeams.forEach((team) => {
     team.players = fisherYatesShuffle(team.players);
   });
@@ -1245,6 +1438,8 @@ function generateRatingTeams(
   const reserves = players.filter((p) => !allAssignedPlayers.includes(p));
 
   rebalanceFootballPositionsBySwap(teams, footballPositionTargets, sport);
+  rebalanceBasketballBySwap(teams, sport);
+  rebalanceTugWeightBySwap(teams, sport);
   teams.forEach((team) => {
     team.players = fisherYatesShuffle(team.players);
   });
@@ -1320,6 +1515,8 @@ function generateShuffleTeams(
       players: fisherYatesShuffle(t.players),
     }));
     rebalanceFootballPositionsBySwap(outTeams, footballPositionTargets, sport);
+    rebalanceBasketballBySwap(outTeams, sport);
+    rebalanceTugWeightBySwap(outTeams, sport);
     outTeams.forEach((team) => {
       team.players = fisherYatesShuffle(team.players);
     });
@@ -1468,6 +1665,8 @@ function generateShuffleTeams(
   const reserves = players.filter((p) => !allAssigned.includes(p));
 
   rebalanceFootballPositionsBySwap(teams, footballPositionTargets, sport);
+  rebalanceBasketballBySwap(teams, sport);
+  rebalanceTugWeightBySwap(teams, sport);
   teams.forEach((team) => {
     team.players = fisherYatesShuffle(team.players);
   });

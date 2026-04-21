@@ -51,6 +51,8 @@ interface TeamMetrics {
   n: number;
   avgRating: number;
   avgAge: number | null;
+  avgHeight: number | null;
+  avgWeight: number | null;
   male: number;
   female: number;
   veterans: number;
@@ -64,6 +66,10 @@ function computeTeamMetrics(players: Player[]): TeamMetrics {
   let sumR = 0;
   let sumAge = 0;
   let ageC = 0;
+  let sumHeight = 0;
+  let heightC = 0;
+  let sumWeight = 0;
+  let weightC = 0;
   const pos: Record<Position, number> = { GK: 0, DEF: 0, MID: 0, FWD: 0 };
   const foot = { left: 0, right: 0, both: 0, unknown: 0 };
   const collar = { white: 0, blue: 0, unknown: 0 };
@@ -82,6 +88,14 @@ function computeTeamMetrics(players: Player[]): TeamMetrics {
       sumAge += age;
       ageC++;
     }
+    if (p.excel?.boyCm != null) {
+      sumHeight += p.excel.boyCm;
+      heightC++;
+    }
+    if (p.excel?.kiloKg != null) {
+      sumWeight += p.excel.kiloKg;
+      weightC++;
+    }
     const fk = footKindFromAyak(p.excel?.baskinAyak ?? '');
     if (fk === 'left') foot.left++;
     else if (fk === 'right') foot.right++;
@@ -97,6 +111,8 @@ function computeTeamMetrics(players: Player[]): TeamMetrics {
     n,
     avgRating: n > 0 ? Math.round(sumR / n) : 0,
     avgAge: ageC > 0 ? Math.round((sumAge / ageC) * 10) / 10 : null,
+    avgHeight: heightC > 0 ? Math.round((sumHeight / heightC) * 10) / 10 : null,
+    avgWeight: weightC > 0 ? Math.round((sumWeight / weightC) * 10) / 10 : null,
     male,
     female,
     veterans,
@@ -246,6 +262,8 @@ export default function ReportsPage() {
                       <th className="px-2 py-2 text-right tabular-nums">Kişi</th>
                       <th className="px-2 py-2 text-right tabular-nums">Ort.R</th>
                       <th className="px-2 py-2 text-right tabular-nums">Ort. yaş</th>
+                      <th className="px-2 py-2 text-right tabular-nums">Ort. boy</th>
+                      <th className="px-2 py-2 text-right tabular-nums">Ort. kilo</th>
                       <th className="px-2 py-2 text-right tabular-nums">E</th>
                       <th className="px-2 py-2 text-right tabular-nums">K</th>
                       <th className="px-2 py-2 text-right tabular-nums">Vet</th>
@@ -268,6 +286,12 @@ export default function ReportsPage() {
                           <td className="px-2 py-2 text-right tabular-nums text-zinc-200">{tm.avgRating}</td>
                           <td className="px-2 py-2 text-right tabular-nums text-zinc-300">
                             {tm.avgAge ?? '—'}
+                          </td>
+                          <td className="px-2 py-2 text-right tabular-nums text-zinc-300">
+                            {tm.avgHeight != null ? `${tm.avgHeight} cm` : '—'}
+                          </td>
+                          <td className="px-2 py-2 text-right tabular-nums text-zinc-300">
+                            {tm.avgWeight != null ? `${tm.avgWeight} kg` : '—'}
                           </td>
                           <td className="px-2 py-2 text-right tabular-nums text-zinc-400">{tm.male}</td>
                           <td className="px-2 py-2 text-right tabular-nums text-zinc-400">{tm.female}</td>
@@ -309,6 +333,18 @@ export default function ReportsPage() {
                         <Calendar className="h-3 w-3 text-sky-400/80" strokeWidth={1.5} />
                         Ort. yaş{' '}
                         <strong className="tabular-nums text-white">{tm.avgAge ?? '—'}</strong>
+                      </span>
+                      <span className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1 text-[11px] text-zinc-300">
+                        Ort. boy{' '}
+                        <strong className="tabular-nums text-white">
+                          {tm.avgHeight != null ? `${tm.avgHeight} cm` : '—'}
+                        </strong>
+                      </span>
+                      <span className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1 text-[11px] text-zinc-300">
+                        Ort. kilo{' '}
+                        <strong className="tabular-nums text-white">
+                          {tm.avgWeight != null ? `${tm.avgWeight} kg` : '—'}
+                        </strong>
                       </span>
                       <span className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1 text-[11px] text-zinc-300">
                         <Users className="h-3 w-3 text-zinc-400" strokeWidth={1.5} />
