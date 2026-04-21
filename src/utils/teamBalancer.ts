@@ -37,6 +37,11 @@ type VolleyballGenderTargets = {
   male: number[];
 };
 
+type VolleyballCollarTargets = {
+  white: number[];
+  blue: number[];
+};
+
 type FootballOutfieldTargets = {
   DEF: number[];
   MID: number[];
@@ -74,6 +79,16 @@ function balanceWeights(sport: string | undefined): BalanceWeights {
   }
   if (sport === 'Voleybol') {
     return { ...base, female: 42 };
+  }
+  if (sport === 'Futbol') {
+    return {
+      ...base,
+      vet: 28,
+      vetPos: 12,
+      rating: 64,
+      age: 1.1,
+      pos: 9,
+    };
   }
   return base;
 }
@@ -133,6 +148,77 @@ function buildVolleyballGenderTargets(
   }
 
   return { female: femaleTarget, male: caps.map((c, i) => c - femaleTarget[i]) };
+}
+
+function buildVolleyballCollarTargets(
+  players: Player[],
+  caps: number[],
+  sport: string | undefined
+): VolleyballCollarTargets | null {
+  if (sport !== 'Voleybol') return null;
+  const totalSlots = caps.reduce((a, b) => a + b, 0);
+  const totalWhitePool = players.reduce(
+    (acc, p) => acc + (inferCollarType(p.excel?.statu ?? '') === 'white' ? 1 : 0),
+    0
+  );
+  const totalBluePool = players.reduce(
+    (acc, p) => acc + (inferCollarType(p.excel?.statu ?? '') === 'blue' ? 1 : 0),
+    0
+  );
+  const knownPool = totalWhitePool + totalBluePool;
+  if (totalSlots <= 0 || knownPool <= 0) return null;
+
+  const minWhiteNeeded = Math.max(0, totalSlots - totalBluePool);
+  const maxWhiteAllowed = Math.min(totalSlots, totalWhitePool);
+  const desiredWhiteTotal = Math.round(totalSlots / 2);
+  const targetWhiteTotal = clamp(desiredWhiteTotal, minWhiteNeeded, maxWhiteAllowed);
+  const targetBlueTotal = totalSlots - targetWhiteTotal;
+
+  const whiteTarget = caps.map((c) => Math.floor(c / 2));
+  let sumWhite = whiteTarget.reduce((a, b) => a + b, 0);
+  while (sumWhite < targetWhiteTotal) {
+    let bestIdx = -1;
+    let bestScore = Number.POSITIVE_INFINITY;
+    for (let i = 0; i < caps.length; i++) {
+      if (whiteTarget[i] >= caps[i]) continue;
+      const nextRatioDiff = Math.abs((whiteTarget[i] + 1) / caps[i] - 0.5);
+      if (nextRatioDiff < bestScore || (nextRatioDiff === bestScore && i < bestIdx)) {
+        bestScore = nextRatioDiff;
+        bestIdx = i;
+      }
+    }
+    if (bestIdx < 0) break;
+    whiteTarget[bestIdx]++;
+    sumWhite++;
+  }
+  while (sumWhite > targetWhiteTotal) {
+    let bestIdx = -1;
+    let bestScore = Number.POSITIVE_INFINITY;
+    for (let i = 0; i < caps.length; i++) {
+      if (whiteTarget[i] <= 0) continue;
+      const nextRatioDiff = Math.abs((whiteTarget[i] - 1) / caps[i] - 0.5);
+      if (nextRatioDiff < bestScore || (nextRatioDiff === bestScore && i < bestIdx)) {
+        bestScore = nextRatioDiff;
+        bestIdx = i;
+      }
+    }
+    if (bestIdx < 0) break;
+    whiteTarget[bestIdx]--;
+    sumWhite--;
+  }
+
+  const blueTarget = caps.map((c, i) => c - whiteTarget[i]);
+  let sumBlue = blueTarget.reduce((a, b) => a + b, 0);
+  if (sumBlue !== targetBlueTotal) {
+    // White hedefi slot bazında sabitlendiği için burada teorik olarak eşit olmalı.
+    // Güvenlik için tutarsızlıkta white hedefini koruyup maviyi tamamlıyoruz.
+    sumBlue = targetBlueTotal;
+  }
+
+  return {
+    white: whiteTarget,
+    blue: blueTarget,
+  };
 }
 
 /**
@@ -205,10 +291,17 @@ function canPlaceVolleyballInAcc(
   teamIdx: number,
   p: Player,
   targets: VolleyballGenderTargets | null,
-  footballPositionTargets?: FootballOutfieldTargets | null
+  footballPositionTargets?: FootballOutfieldTargets | null,
+  volleyballCollarTargets?: VolleyballCollarTargets | null,
+  ignoreFootballPositionTargets = false
 ): boolean {
-  if (footballPositionTargets && p.position !== 'GK') {
+  if (!ignoreFootballPositionTargets && footballPositionTargets && p.position !== 'GK') {
     if (acc.pos[p.position] >= footballPositionTargets[p.position][teamIdx]) return false;
+  }
+  if (volleyballCollarTargets) {
+    const c = inferCollarType(p.excel?.statu ?? '');
+    if (c === 'white' && acc.white >= volleyballCollarTargets.white[teamIdx]) return false;
+    if (c === 'blue' && acc.blue >= volleyballCollarTargets.blue[teamIdx]) return false;
   }
   if (!targets) return true;
   if (p.gender === 'female') return acc.females < targets.female[teamIdx];
@@ -220,11 +313,30 @@ function canPlaceVolleyballInTeam(
   teamIdx: number,
   p: Player,
   targets: VolleyballGenderTargets | null,
-  footballPositionTargets?: FootballOutfieldTargets | null
+  footballPositionTargets?: FootballOutfieldTargets | null,
+  volleyballCollarTargets?: VolleyballCollarTargets | null,
+  ignoreFootballPositionTargets = false
 ): boolean {
-  if (footballPositionTargets && p.position !== 'GK') {
+  if (!ignoreFootballPositionTargets && footballPositionTargets && p.position !== 'GK') {
     const posCount = team.players.reduce((acc, pl) => acc + (pl.position === p.position ? 1 : 0), 0);
     if (posCount >= footballPositionTargets[p.position][teamIdx]) return false;
+  }
+  if (volleyballCollarTargets) {
+    const c = inferCollarType(p.excel?.statu ?? '');
+    if (c === 'white') {
+      const whiteCount = team.players.reduce(
+        (acc, pl) => acc + (inferCollarType(pl.excel?.statu ?? '') === 'white' ? 1 : 0),
+        0
+      );
+      if (whiteCount >= volleyballCollarTargets.white[teamIdx]) return false;
+    }
+    if (c === 'blue') {
+      const blueCount = team.players.reduce(
+        (acc, pl) => acc + (inferCollarType(pl.excel?.statu ?? '') === 'blue' ? 1 : 0),
+        0
+      );
+      if (blueCount >= volleyballCollarTargets.blue[teamIdx]) return false;
+    }
   }
   if (!targets) return true;
   const f = teamFemaleCount(team);
@@ -372,6 +484,102 @@ function splitGkField(players: Player[]): { gks: Player[]; field: Player[] } {
   return { gks, field };
 }
 
+function teamOutfieldCounts(players: Player[]): Record<Position, number> {
+  const c: Record<Position, number> = { GK: 0, DEF: 0, MID: 0, FWD: 0 };
+  for (const p of players) c[p.position]++;
+  return c;
+}
+
+function footballPosDeviation(
+  teams: Team[],
+  targets: FootballOutfieldTargets
+): number {
+  let score = 0;
+  for (let i = 0; i < teams.length; i++) {
+    const c = teamOutfieldCounts(teams[i].players);
+    score += Math.abs(c.DEF - targets.DEF[i]);
+    score += Math.abs(c.MID - targets.MID[i]);
+    score += Math.abs(c.FWD - targets.FWD[i]);
+  }
+  return score;
+}
+
+/**
+ * Futbolda takım kişi sayısını bozmadan 1-1 swap ile DEF/MID/FWD sapmasını düşür.
+ */
+function rebalanceFootballPositionsBySwap(
+  teams: Team[],
+  targets: FootballOutfieldTargets | null,
+  sport?: string
+): void {
+  if (sport !== 'Futbol' || !targets || teams.length === 0) return;
+
+  for (let iter = 0; iter < 300; iter++) {
+    let improved = false;
+    const currentScore = footballPosDeviation(teams, targets);
+
+    for (let a = 0; a < teams.length && !improved; a++) {
+      for (let b = a + 1; b < teams.length && !improved; b++) {
+        const ta = teams[a];
+        const tb = teams[b];
+        const ca = teamOutfieldCounts(ta.players);
+        const cb = teamOutfieldCounts(tb.players);
+
+        for (let ia = 0; ia < ta.players.length && !improved; ia++) {
+          const pa = ta.players[ia];
+          if (pa.position === 'GK') continue;
+          for (let ib = 0; ib < tb.players.length && !improved; ib++) {
+            const pb = tb.players[ib];
+            if (pb.position === 'GK' || pa.position === pb.position) continue;
+
+            const paVet = isVeteranPlayer(pa);
+            const pbVet = isVeteranPlayer(pb);
+            if (paVet !== pbVet) continue;
+
+            const nextCa = { ...ca };
+            const nextCb = { ...cb };
+            nextCa[pa.position]--;
+            nextCa[pb.position]++;
+            nextCb[pb.position]--;
+            nextCb[pa.position]++;
+
+            const oldLocal =
+              Math.abs(ca.DEF - targets.DEF[a]) +
+              Math.abs(ca.MID - targets.MID[a]) +
+              Math.abs(ca.FWD - targets.FWD[a]) +
+              Math.abs(cb.DEF - targets.DEF[b]) +
+              Math.abs(cb.MID - targets.MID[b]) +
+              Math.abs(cb.FWD - targets.FWD[b]);
+
+            const newLocal =
+              Math.abs(nextCa.DEF - targets.DEF[a]) +
+              Math.abs(nextCa.MID - targets.MID[a]) +
+              Math.abs(nextCa.FWD - targets.FWD[a]) +
+              Math.abs(nextCb.DEF - targets.DEF[b]) +
+              Math.abs(nextCb.MID - targets.MID[b]) +
+              Math.abs(nextCb.FWD - targets.FWD[b]);
+
+            if (newLocal >= oldLocal) continue;
+            if (Math.abs(pa.rating - pb.rating) > 8) continue;
+
+            ta.players[ia] = pb;
+            tb.players[ib] = pa;
+            const nextScore = footballPosDeviation(teams, targets);
+            if (nextScore < currentScore) {
+              improved = true;
+            } else {
+              ta.players[ia] = pa;
+              tb.players[ib] = pb;
+            }
+          }
+        }
+      }
+    }
+
+    if (!improved) break;
+  }
+}
+
 function accHasGk(acc: TeamAcc): boolean {
   return acc.players.some(isGoalkeeperPlayer);
 }
@@ -401,7 +609,8 @@ function distributeVeteransEvenly(
   veterans: Player[],
   sport?: string,
   volleyballTargets?: VolleyballGenderTargets | null,
-  footballPositionTargets?: FootballOutfieldTargets | null
+  footballPositionTargets?: FootballOutfieldTargets | null,
+  volleyballCollarTargets?: VolleyballCollarTargets | null
 ): void {
   const ordered = [...veterans].sort((a, b) => b.rating - a.rating);
   const T = teams.length;
@@ -413,7 +622,14 @@ function distributeVeteransEvenly(
       if (teams[i].players.length >= caps[i]) continue;
       if (usesAdvancedSquadRules(sport) && isGoalkeeperPlayer(p) && accHasGk(teams[i])) continue;
       if (
-        !canPlaceVolleyballInAcc(teams[i], i, p, volleyballTargets ?? null, footballPositionTargets)
+        !canPlaceVolleyballInAcc(
+          teams[i],
+          i,
+          p,
+          volleyballTargets ?? null,
+          footballPositionTargets,
+          volleyballCollarTargets
+        )
       )
         continue;
 
@@ -455,7 +671,8 @@ function distributeFemalesForVolleyball(
   females: Player[],
   sport: string | undefined,
   volleyballTargets?: VolleyballGenderTargets | null,
-  footballPositionTargets?: FootballOutfieldTargets | null
+  footballPositionTargets?: FootballOutfieldTargets | null,
+  volleyballCollarTargets?: VolleyballCollarTargets | null
 ): void {
   if (sport !== 'Voleybol') return;
   const ordered = [...females].sort((a, b) => b.rating - a.rating);
@@ -467,7 +684,14 @@ function distributeFemalesForVolleyball(
       if (teams[i].players.length >= caps[i]) continue;
       if (usesAdvancedSquadRules(sport) && isGoalkeeperPlayer(p) && accHasGk(teams[i])) continue;
       if (
-        !canPlaceVolleyballInAcc(teams[i], i, p, volleyballTargets ?? null, footballPositionTargets)
+        !canPlaceVolleyballInAcc(
+          teams[i],
+          i,
+          p,
+          volleyballTargets ?? null,
+          footballPositionTargets,
+          volleyballCollarTargets
+        )
       )
         continue;
 
@@ -511,7 +735,8 @@ function pinOneGkPerFootballTeam(
   caps: number[],
   players: Player[],
   volleyballTargets?: VolleyballGenderTargets | null,
-  footballPositionTargets?: FootballOutfieldTargets | null
+  footballPositionTargets?: FootballOutfieldTargets | null,
+  volleyballCollarTargets?: VolleyballCollarTargets | null
 ): Player[] {
   const T = teams.length;
   const { gks, field } = splitGkField(players);
@@ -529,7 +754,14 @@ function pinOneGkPerFootballTeam(
     const t = eligible[(gi * step) % L];
     const p = gksSorted[gi];
     if (
-      !canPlaceVolleyballInAcc(teams[t], t, p, volleyballTargets ?? null, footballPositionTargets)
+      !canPlaceVolleyballInAcc(
+        teams[t],
+        t,
+        p,
+        volleyballTargets ?? null,
+        footballPositionTargets,
+        volleyballCollarTargets
+      )
     )
       continue;
     addPlayer(teams[t], p);
@@ -678,6 +910,7 @@ function generateTournamentTeams(
 
   const caps = getTeamSlotCaps(players.length, teamCount, teamSize);
   const volleyballTargets = buildVolleyballGenderTargets(players, caps, sport);
+  const volleyballCollarTargets = buildVolleyballCollarTargets(players, caps, sport);
   const footballPositionTargets = buildFootballPositionTargets(players, caps, sport);
 
   const { ideal } = buildIdealPerTeam(players, teamCount, sport);
@@ -686,7 +919,14 @@ function generateTournamentTeams(
 
   /** Futbol/Voleybol: kaleciler sabit → veteranlar → kalanlar rating/mevki/yaş dengesi */
   const poolAfterGk = usesAdvancedSquadRules(sport)
-    ? pinOneGkPerFootballTeam(teams, caps, players, volleyballTargets, footballPositionTargets)
+    ? pinOneGkPerFootballTeam(
+        teams,
+        caps,
+        players,
+        volleyballTargets,
+        footballPositionTargets,
+        volleyballCollarTargets
+      )
     : [...players];
 
   const { veterans: veteranPool } = splitVeterans(poolAfterGk);
@@ -696,7 +936,8 @@ function generateTournamentTeams(
     veteranPool,
     sport,
     volleyballTargets,
-    footballPositionTargets
+    footballPositionTargets,
+    volleyballCollarTargets
   );
 
   const afterVets = assignedIdSet(teams);
@@ -708,7 +949,8 @@ function generateTournamentTeams(
     femalePool,
     sport,
     volleyballTargets,
-    footballPositionTargets
+    footballPositionTargets,
+    volleyballCollarTargets
   );
 
   const placed = assignedIdSet(teams);
@@ -722,7 +964,16 @@ function generateTournamentTeams(
     for (let i = 0; i < teamCount; i++) {
       if (teams[i].players.length >= caps[i]) continue;
       if (usesAdvancedSquadRules(sport) && isGoalkeeperPlayer(p) && accHasGk(teams[i])) continue;
-      if (!canPlaceVolleyballInAcc(teams[i], i, p, volleyballTargets, footballPositionTargets))
+      if (
+        !canPlaceVolleyballInAcc(
+          teams[i],
+          i,
+          p,
+          volleyballTargets,
+          footballPositionTargets,
+          volleyballCollarTargets
+        )
+      )
         continue;
       const pen = marginalPenalty(teams[i], p, ideal, sport);
       let take = false;
@@ -748,6 +999,34 @@ function generateTournamentTeams(
 
     if (bestIdx >= 0) {
       addPlayer(teams[bestIdx], p);
+      continue;
+    }
+
+    // Futbolda takım doluluğu 1. öncelik: mevki kilidi yüzünden açık slot kalmasın.
+    if (sport === 'Futbol' && footballPositionTargets) {
+      for (let i = 0; i < teamCount; i++) {
+        if (teams[i].players.length >= caps[i]) continue;
+        if (usesAdvancedSquadRules(sport) && isGoalkeeperPlayer(p) && accHasGk(teams[i])) continue;
+        if (
+          !canPlaceVolleyballInAcc(
+            teams[i],
+            i,
+            p,
+            volleyballTargets,
+            footballPositionTargets,
+            volleyballCollarTargets,
+            true
+          )
+        ) {
+          continue;
+        }
+        const pen = marginalPenalty(teams[i], p, ideal, sport);
+        if (pen < bestPen || (pen === bestPen && (bestIdx < 0 || i < bestIdx))) {
+          bestPen = pen;
+          bestIdx = i;
+        }
+      }
+      if (bestIdx >= 0) addPlayer(teams[bestIdx], p);
     }
   }
 
@@ -759,6 +1038,10 @@ function generateTournamentTeams(
     name: `Takım ${i + 1}`,
     players: fisherYatesShuffle(t.players),
   }));
+  rebalanceFootballPositionsBySwap(outTeams, footballPositionTargets, sport);
+  outTeams.forEach((team) => {
+    team.players = fisherYatesShuffle(team.players);
+  });
 
   return { teams: outTeams, reserves };
 }
@@ -777,6 +1060,7 @@ function generateRatingTeams(
 
   const caps = getTeamSlotCaps(players.length, teamCount, teamSize);
   const volleyballTargets = buildVolleyballGenderTargets(players, caps, sport);
+  const volleyballCollarTargets = buildVolleyballCollarTargets(players, caps, sport);
   const footballPositionTargets = buildFootballPositionTargets(players, caps, sport);
 
   const teams: Team[] = Array.from({ length: teamCount }, (_, i) => ({
@@ -800,7 +1084,16 @@ function generateRatingTeams(
     for (let t = 0; t < teamCount && gi < gksSorted.length; t++) {
       if (caps[t] < 1) continue;
       const p = gksSorted[gi];
-      if (!canPlaceVolleyballInTeam(teams[t], t, p, volleyballTargets, footballPositionTargets)) {
+      if (
+        !canPlaceVolleyballInTeam(
+          teams[t],
+          t,
+          p,
+          volleyballTargets,
+          footballPositionTargets,
+          volleyballCollarTargets
+        )
+      ) {
         gi++;
         continue;
       }
@@ -835,7 +1128,8 @@ function generateRatingTeams(
             x.i,
             player,
             volleyballTargets,
-            footballPositionTargets
+            footballPositionTargets,
+            volleyballCollarTargets
           )
         );
       if (candidates.length === 0) continue;
@@ -871,7 +1165,7 @@ function generateRatingTeams(
   const sortedPlayers = [...pool].sort((a, b) => b.rating - a.rating);
 
   for (const player of sortedPlayers) {
-    const candidates = teams
+    let candidates = teams
       .map((t, i) => ({ i, len: t.players.length, r: teamRatings[i] }))
       .filter((x) => x.len < caps[x.i])
       .filter(
@@ -888,9 +1182,35 @@ function generateRatingTeams(
           x.i,
           player,
           volleyballTargets,
-          footballPositionTargets
+          footballPositionTargets,
+          volleyballCollarTargets
         )
       );
+
+    if (candidates.length === 0 && sport === 'Futbol' && footballPositionTargets) {
+      candidates = teams
+        .map((t, i) => ({ i, len: t.players.length, r: teamRatings[i] }))
+        .filter((x) => x.len < caps[x.i])
+        .filter(
+          (x) =>
+            !(
+              usesAdvancedSquadRules(sport) &&
+              isGoalkeeperPlayer(player) &&
+              teams[x.i].players.some(isGoalkeeperPlayer)
+            )
+        )
+        .filter((x) =>
+          canPlaceVolleyballInTeam(
+            teams[x.i],
+            x.i,
+            player,
+            volleyballTargets,
+            footballPositionTargets,
+            volleyballCollarTargets,
+            true
+          )
+        );
+    }
     if (candidates.length === 0) break;
 
     let bestIdx = -1;
@@ -924,6 +1244,7 @@ function generateRatingTeams(
   const allAssignedPlayers = teams.flatMap((t) => t.players);
   const reserves = players.filter((p) => !allAssignedPlayers.includes(p));
 
+  rebalanceFootballPositionsBySwap(teams, footballPositionTargets, sport);
   teams.forEach((team) => {
     team.players = fisherYatesShuffle(team.players);
   });
@@ -945,6 +1266,7 @@ function generateShuffleTeams(
 
   const caps = getTeamSlotCaps(players.length, teamCount, teamSize);
   const volleyballTargets = buildVolleyballGenderTargets(players, caps, sport);
+  const volleyballCollarTargets = buildVolleyballCollarTargets(players, caps, sport);
   const footballPositionTargets = buildFootballPositionTargets(players, caps, sport);
 
   const { ideal } = buildIdealPerTeam(players, teamCount, sport);
@@ -958,7 +1280,16 @@ function generateShuffleTeams(
       let bestPen = Number.POSITIVE_INFINITY;
       for (let i = 0; i < teamCount; i++) {
         if (teamsAcc[i].players.length >= caps[i]) continue;
-        if (!canPlaceVolleyballInAcc(teamsAcc[i], i, p, volleyballTargets, footballPositionTargets))
+        if (
+          !canPlaceVolleyballInAcc(
+            teamsAcc[i],
+            i,
+            p,
+            volleyballTargets,
+            footballPositionTargets,
+            volleyballCollarTargets
+          )
+        )
           continue;
         const pen = marginalPenalty(teamsAcc[i], p, ideal, sport);
         let take = false;
@@ -988,6 +1319,10 @@ function generateShuffleTeams(
       name: `Takım ${i + 1}`,
       players: fisherYatesShuffle(t.players),
     }));
+    rebalanceFootballPositionsBySwap(outTeams, footballPositionTargets, sport);
+    outTeams.forEach((team) => {
+      team.players = fisherYatesShuffle(team.players);
+    });
     const allAssigned = outTeams.flatMap((t) => t.players);
     const reserves = players.filter((p) => !allAssigned.includes(p));
     return { teams: outTeams, reserves };
@@ -1008,7 +1343,16 @@ function generateShuffleTeams(
     for (let t = 0; t < teamCount && gi < gksSorted.length; t++) {
       if (caps[t] < 1) continue;
       const p = gksSorted[gi];
-      if (!canPlaceVolleyballInTeam(teams[t], t, p, volleyballTargets, footballPositionTargets)) {
+      if (
+        !canPlaceVolleyballInTeam(
+          teams[t],
+          t,
+          p,
+          volleyballTargets,
+          footballPositionTargets,
+          volleyballCollarTargets
+        )
+      ) {
         gi++;
         continue;
       }
@@ -1037,7 +1381,16 @@ function generateShuffleTeams(
           continue;
         }
         const fc = teams[i].players.filter((x) => x.gender === 'female').length;
-        if (!canPlaceVolleyballInTeam(teams[i], i, p, volleyballTargets, footballPositionTargets))
+        if (
+          !canPlaceVolleyballInTeam(
+            teams[i],
+            i,
+            p,
+            volleyballTargets,
+            footballPositionTargets,
+            volleyballCollarTargets
+          )
+        )
           continue;
         if (fc < bestFc || (fc === bestFc && (bestI < 0 || i < bestI))) {
           bestFc = fc;
@@ -1065,17 +1418,56 @@ function generateShuffleTeams(
       ) {
         continue;
       }
-      if (!canPlaceVolleyballInTeam(teams[i], i, p, volleyballTargets, footballPositionTargets))
+      if (
+        !canPlaceVolleyballInTeam(
+          teams[i],
+          i,
+          p,
+          volleyballTargets,
+          footballPositionTargets,
+          volleyballCollarTargets
+        )
+      )
         continue;
       teams[i].players.push(p);
       rr = (i + 1) % teamCount;
       placed = true;
+    }
+    if (!placed && sport === 'Futbol' && footballPositionTargets) {
+      for (let tries = 0; tries < teamCount && !placed; tries++) {
+        const i = (rr + tries) % teamCount;
+        if (teams[i].players.length >= caps[i]) continue;
+        if (
+          usesAdvancedSquadRules(sport) &&
+          isGoalkeeperPlayer(p) &&
+          teams[i].players.some(isGoalkeeperPlayer)
+        ) {
+          continue;
+        }
+        if (
+          !canPlaceVolleyballInTeam(
+            teams[i],
+            i,
+            p,
+            volleyballTargets,
+            footballPositionTargets,
+            volleyballCollarTargets,
+            true
+          )
+        ) {
+          continue;
+        }
+        teams[i].players.push(p);
+        rr = (i + 1) % teamCount;
+        placed = true;
+      }
     }
   }
 
   const allAssigned = teams.flatMap((t) => t.players);
   const reserves = players.filter((p) => !allAssigned.includes(p));
 
+  rebalanceFootballPositionsBySwap(teams, footballPositionTargets, sport);
   teams.forEach((team) => {
     team.players = fisherYatesShuffle(team.players);
   });

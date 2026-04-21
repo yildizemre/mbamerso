@@ -48,12 +48,16 @@ export function inferCollarType(statu: string): CollarType {
   if (!s.trim()) return 'unknown';
 
   if (
-    /\b(013|direkt\s*işçi|direkt\s*isci|üretim|uretim|işçi|isci|mavi|postabaşı|postabasi|fabrika)\b/.test(s)
+    /\b(010|013|014|direkt\s*işçi|direkt\s*isci|endirek?t?\s*işçi|endirek?t?\s*isci|endirek?t?\s*memur|endirek?t?\s*my|üretim|uretim|işçi|isci|mavi|posta\s*başı|posta\s*basi|postabaşı|postabasi|fabrika)\b/.test(
+      s
+    )
   ) {
     return 'blue';
   }
   if (
-    /\b(009|007|012|memur|mühendis|muhendis|şef|sef|yönetim|yonetim|stajyer|müdür|mudur|personel|beyaz|ofis)\b/.test(s)
+    /\b(006|007|009|012|pep|memur|mühendis|muhendis|şef|sef|yönetim|yonetim|stajyer|müdür|mudur|personel|beyaz|ofis)\b/.test(
+      s
+    )
   ) {
     return 'white';
   }
