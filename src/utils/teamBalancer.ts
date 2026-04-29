@@ -713,11 +713,27 @@ function tugObjective(teams: Team[]): number {
   const ws = teams.map((t) => avgWeight(t.players)).filter((v): v is number => v != null);
   const rs = teams.map((t) => avgRating(t.players));
   const as = teams.map((t) => avgAge(t.players)).filter((v): v is number => v != null);
-  // Öncelik: kilo > rating > yaş
+  const whiteCounts = teams.map(
+    (t) =>
+      t.players.reduce(
+        (acc, p) => acc + (inferCollarType(p.excel?.statu ?? '') === 'white' ? 1 : 0),
+        0
+      )
+  );
+  const blueCounts = teams.map(
+    (t) =>
+      t.players.reduce(
+        (acc, p) => acc + (inferCollarType(p.excel?.statu ?? '') === 'blue' ? 1 : 0),
+        0
+      )
+  );
+  // Öncelik: kilo > yaka dengesi > rating > yaş
   const wRange = rangeOf(ws);
+  const whiteRange = rangeOf(whiteCounts);
+  const blueRange = rangeOf(blueCounts);
   const rRange = rangeOf(rs);
   const aRange = rangeOf(as);
-  return wRange * 1000 + rRange * 25 + aRange * 6;
+  return wRange * 1000 + (whiteRange + blueRange) * 220 + rRange * 20 + aRange * 6;
 }
 
 /**
@@ -746,7 +762,7 @@ function rebalanceTugWeightBySwap(teams: Team[], sport?: string): void {
         const wa = pa.excel?.kiloKg;
         const wb = pb.excel?.kiloKg;
         if (wa == null || wb == null) continue;
-        if (Math.abs(pa.rating - pb.rating) > 15) continue;
+        if (Math.abs(pa.rating - pb.rating) > 18) continue;
 
         a.players[ia] = pb;
         b.players[ib] = pa;

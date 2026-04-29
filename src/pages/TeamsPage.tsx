@@ -12,6 +12,7 @@ import {
   type BalanceMode,
 } from '../utils/teamBalancer';
 import { exportTeamsToPDF } from '../utils/pdfExport';
+import { exportTeamsToExcel } from '../utils/excelExport';
 import {
   emptyTeamColumnFilters,
   playerPassesTeamColumnFilters,
@@ -521,6 +522,15 @@ export default function TeamsPage({ players }: TeamsPageProps) {
     }
   };
 
+  const handleExportExcel = () => {
+    try {
+      exportTeamsToExcel(teams, reserves, `MAB ${selectedSport} - Takimlar`);
+    } catch (e) {
+      console.error(e);
+      alert(e instanceof Error ? e.message : 'Excel oluşturulamadı.');
+    }
+  };
+
   const getCategoryStats = () => {
     const filtered = getFilteredPlayers();
     const maleCount = filtered.filter((p) => p.gender === 'male').length;
@@ -1020,6 +1030,14 @@ export default function TeamsPage({ players }: TeamsPageProps) {
                 >
                   <Download className="h-4 w-4" strokeWidth={1.5} />
                   PDF indir
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportExcel}
+                  className="inline-flex min-h-[2.75rem] w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-medium text-white transition-all hover:border-emerald-500/30 hover:bg-emerald-500/10 hover:text-emerald-200 sm:w-auto"
+                >
+                  <Download className="h-4 w-4" strokeWidth={1.5} />
+                  Excel indir
                 </button>
               </div>
             </div>
