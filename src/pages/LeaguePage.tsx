@@ -37,6 +37,7 @@ export const YELLOW_FOR_SUSPENSION = 4;
 /** Futbol: bu kadar kırmızı kart = 1 maç men (en az 1 yeter) */
 export const RED_FOR_SUSPENSION = 1;
 const LEAGUE_START_DATE = new Date(2026, 4, 5); // 5 Mayıs 2026
+const FOOTBALL_MATCH_DAY_OFFSETS = [0, 1, 2] as const; // Salı, Çarşamba, Perşembe
 
 function trDate(d: Date): string {
   return d.toLocaleDateString('tr-TR');
@@ -45,6 +46,14 @@ function trDate(d: Date): string {
 function roundDate(round: number): string {
   const d = new Date(LEAGUE_START_DATE);
   d.setDate(LEAGUE_START_DATE.getDate() + (round - 1) * 7);
+  return trDate(d);
+}
+
+function footballMatchDate(round: number, matchIdx: number): string {
+  const d = new Date(LEAGUE_START_DATE);
+  d.setDate(
+    LEAGUE_START_DATE.getDate() + (round - 1) * 7 + FOOTBALL_MATCH_DAY_OFFSETS[matchIdx % 3]
+  );
   return trDate(d);
 }
 
@@ -233,6 +242,11 @@ export default function LeaguePage() {
               iç/dış saha ayrımı yok). Tüm branşlarda aynı lig fikstürü. Skorları haftaya göre girin;
               puan tablosu güncellenir.
             </p>
+            {isFutbol && (
+              <p className="mt-1 text-xs text-zinc-500">
+                Futbol maç günleri: <strong className="text-zinc-300">Salı - Çarşamba - Perşembe</strong>
+              </p>
+            )}
             <p className="mt-1 text-xs text-zinc-500">
               Lig başlangıcı: <strong className="text-zinc-300">{trDate(LEAGUE_START_DATE)}</strong>
             </p>
@@ -307,7 +321,7 @@ export default function LeaguePage() {
                     )}
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {fr.matches.map(({ a, b }) => {
+                    {fr.matches.map(({ a, b }, matchIdx) => {
                       const lo = Math.min(a, b);
                       const hi = Math.max(a, b);
                       const k = matchKey(lo, hi);
@@ -321,6 +335,7 @@ export default function LeaguePage() {
                           nameHi={teamName(teams, hi)}
                           loScore={cur?.lo ?? ''}
                           hiScore={cur?.hi ?? ''}
+                          dateLabel={isFutbol ? footballMatchDate(fr.round, matchIdx) : undefined}
                           onSave={(a, b) => setMatchScore(lo, hi, a, b)}
                         />
                       );
@@ -497,6 +512,7 @@ function MatchRow({
   nameHi,
   loScore,
   hiScore,
+  dateLabel,
   onSave,
 }: {
   lo: number;
@@ -505,6 +521,7 @@ function MatchRow({
   nameHi: string;
   loScore: number | '';
   hiScore: number | '';
+  dateLabel?: string;
   onSave: (lo: number, hi: number) => void;
 }) {
   const [a, setA] = useState(String(loScore === '' ? '' : loScore));
@@ -527,6 +544,7 @@ function MatchRow({
       <div className="mb-2 text-[11px] text-zinc-500">
         #{lo} {nameLo} — #{hi} {nameHi}
       </div>
+      {dateLabel && <div className="mb-2 text-[10px] text-emerald-400/85">{dateLabel}</div>}
       <div className="flex items-center gap-2">
         <input
           type="number"

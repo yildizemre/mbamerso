@@ -23,6 +23,7 @@ import { useSport } from '../context/SportContext';
 import { defaultTeamSizeForSport, maxTeamsForSport } from '../utils/sports';
 import { isVeteranPlayer, playerAgeYears } from '../utils/playerDerivedStats';
 import { saveSquad, loadSquad, clearSquad } from '../utils/squadStorage';
+import { hasFixedTeamsForSport, loadFixedSquadForSport } from '../utils/fixedSquads';
 
 interface TeamsPageProps {
   players: Player[];
@@ -338,6 +339,7 @@ function ReservePlayerDetail({ player }: { player: Player }) {
 export default function TeamsPage({ players }: TeamsPageProps) {
   const navigate = useNavigate();
   const { selectedSport } = useSport();
+  const isFixedSport = hasFixedTeamsForSport(selectedSport);
 
   const pool = useMemo(
     () => players.filter((p) => p.sport === selectedSport),
@@ -357,8 +359,35 @@ export default function TeamsPage({ players }: TeamsPageProps) {
   const [balanceMode, setBalanceMode] = useState<BalanceMode>('tournament');
   const [editingTeamId, setEditingTeamId] = useState<number | null>(null);
   const [tempTeamName, setTempTeamName] = useState('');
+  const [fixedSquadLoading, setFixedSquadLoading] = useState(false);
+  const [fixedSquadError, setFixedSquadError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (isFixedSport) {
+      let mounted = true;
+      setFixedSquadLoading(true);
+      setFixedSquadError(null);
+      loadFixedSquadForSport(selectedSport, pool)
+        .then((fixed) => {
+          if (!mounted) return;
+          if (!fixed) return;
+          setTeams(fixed.teams);
+          setReserves(fixed.reserves);
+          setTeamSize(fixed.teamSize);
+          setDesiredTeamCount(fixed.desiredTeamCount);
+        })
+        .catch((e: unknown) => {
+          if (!mounted) return;
+          setFixedSquadError(e instanceof Error ? e.message : 'Sabit takım dosyası okunamadı.');
+        })
+        .finally(() => {
+          if (mounted) setFixedSquadLoading(false);
+        });
+      return () => {
+        mounted = false;
+      };
+    }
+
     const cap = maxTeamsForSport(selectedSport);
     const s = loadSquad(selectedSport);
     if (s && (s.teams.length > 0 || s.reserves.length > 0)) {
@@ -372,7 +401,7 @@ export default function TeamsPage({ players }: TeamsPageProps) {
       setTeams([]);
       setReserves([]);
     }
-  }, [selectedSport]);
+  }, [isFixedSport, selectedSport, pool]);
 
   useEffect(() => {
     if (teams.length === 0 && reserves.length === 0) return;
@@ -403,9 +432,10 @@ export default function TeamsPage({ players }: TeamsPageProps) {
   );
 
   const clearTeams = useCallback(() => {
+    if (isFixedSport) return;
     setTeams([]);
     setReserves([]);
-  }, []);
+  }, [isFixedSport]);
 
   const getFilteredPlayers = useCallback(() => {
     return pool.filter((p) => playerPassesTeamColumnFilters(p, category, columnFilters));
@@ -464,6 +494,7 @@ export default function TeamsPage({ players }: TeamsPageProps) {
   );
 
   const generateTeamsHandler = () => {
+    if (isFixedSport) return;
     const result = generateBalancedTeams(filteredPlayers, teamSize, balanceMode, {
       maxTeams: maxTeamsCap,
       sport: selectedSport,
@@ -474,6 +505,7 @@ export default function TeamsPage({ players }: TeamsPageProps) {
   };
 
   const movePlayerBetweenTeams = (playerId: string, dest: 'reserve' | number) => {
+    if (isFixedSport) return;
     const next = tryMovePlayer(teams, reserves, playerId, dest, teamSize);
     if (!next) {
       window.alert('Takım bu kadro sınırına ulaştı veya oyuncu bulunamadı.');
@@ -489,6 +521,7 @@ export default function TeamsPage({ players }: TeamsPageProps) {
   };
 
   const resetSavedSquad = () => {
+    if (isFixedSport) return;
     if (!window.confirm('Bu branştaki kayıtlı kadro silinsin mi? (Lig maç sonuçları ayrı; Lig sayfasından sıfırlanır.)')) {
       return;
     }
@@ -501,11 +534,13 @@ export default function TeamsPage({ players }: TeamsPageProps) {
   };
 
   const handleTeamNameEdit = (teamId: number, currentName: string) => {
+    if (isFixedSport) return;
     setEditingTeamId(teamId);
     setTempTeamName(currentName);
   };
 
   const saveTeamName = (teamId: number) => {
+    if (isFixedSport) return;
     setTeams(prev => prev.map(team =>
       team.id === teamId ? { ...team, name: tempTeamName || team.name } : team
     ));
@@ -553,12 +588,12 @@ export default function TeamsPage({ players }: TeamsPageProps) {
       <div className="safe-x safe-b mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
         <div className="mb-8 animate-fadeIn sm:mb-12">
           <h1 className="mb-2 text-2xl font-semibold tracking-tight text-white sm:text-3xl md:text-4xl">
-            Takım oluşturucu
+            {isFixedSport ? 'Sabit takımlar' : 'Takım oluşturucu'}
           </h1>
           <p className="max-w-lg text-sm leading-relaxed text-zinc-400">
-            Üst menüden branş seçin. Kadro oluşturduktan sonra tarayıcıda saklanır; sayfayı yenilesen de
-            takımların kalır. İsimleri karttan düzenleyebilir, transferle oynatırsın. Lig’e geçince puan
-            tablosu bu kadroya göre çalışır.
+            {isFixedSport
+              ? 'Bu branşta takım kadroları sabit Excel dosyalarından yüklenir. Takım oluşturma ve manuel düzenleme kapalıdır; Lig ekranı doğrudan bu kadroyu kullanır.'
+              : 'Üst menüden branş seçin. Kadro oluşturduktan sonra tarayıcıda saklanır; sayfayı yenilesen de takımların kalır. İsimleri karttan düzenleyebilir, transferle oynatırsın. Lig’e geçince puan tablosu bu kadroya göre çalışır.'}
           </p>
           <p className="mt-2 text-xs font-medium text-emerald-400/90">
             Seçili branş: {selectedSport}
@@ -568,6 +603,16 @@ export default function TeamsPage({ players }: TeamsPageProps) {
           </p>
         </div>
 
+        {isFixedSport && (
+          <div className="mb-6 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-xs text-emerald-200">
+            Sabit takım modu aktif. Kaynak dosyalar `public` klasorundeki `MAB * - Takimlar-*.xlsx` dosyalaridir.
+            {fixedSquadLoading && <div className="mt-2 text-zinc-300">Takimlar yukleniyor...</div>}
+            {fixedSquadError && <div className="mt-2 text-red-300">{fixedSquadError}</div>}
+          </div>
+        )}
+
+        {!isFixedSport && (
+        <>
         <div className="mb-6 rounded-xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
           <p className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
             Mercedes turnuva dengesi
@@ -986,9 +1031,12 @@ export default function TeamsPage({ players }: TeamsPageProps) {
             </p>
           )}
         </div>
+        </>
+        )}
 
         {teams.length > 0 && (
           <div className="space-y-6 animate-fadeIn">
+            {!isFixedSport && (
             <div className="surface-panel rounded-2xl p-4 sm:p-6">
               <div className="mb-3 flex items-center gap-2">
                 <ArrowLeftRight className="h-4 w-4 text-emerald-500/80" strokeWidth={1.5} />
@@ -1004,6 +1052,7 @@ export default function TeamsPage({ players }: TeamsPageProps) {
                 onMove={movePlayerBetweenTeams}
               />
             </div>
+            )}
 
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -1049,7 +1098,7 @@ export default function TeamsPage({ players }: TeamsPageProps) {
                   className="group surface-card rounded-xl p-4 transition-all duration-300 hover:border-emerald-500/25 hover:shadow-lg hover:shadow-emerald-500/10 sm:p-5"
                 >
                   <div className="flex items-center justify-between mb-4 pb-3 border-b border-white/10">
-                    {editingTeamId === team.id ? (
+                    {!isFixedSport && editingTeamId === team.id ? (
                       <input
                         type="text"
                         value={tempTeamName}
@@ -1062,13 +1111,15 @@ export default function TeamsPage({ players }: TeamsPageProps) {
                     ) : (
                       <h3 className="text-base font-semibold text-white flex items-center space-x-2">
                         <span>{team.name}</span>
-                        <button
-                          type="button"
-                          onClick={() => handleTeamNameEdit(team.id, team.name)}
-                          className="opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100"
-                        >
-                          <Edit2 className="w-3 h-3 text-zinc-400 hover:text-white" strokeWidth={1.5} />
-                        </button>
+                        {!isFixedSport && (
+                          <button
+                            type="button"
+                            onClick={() => handleTeamNameEdit(team.id, team.name)}
+                            className="opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100"
+                          >
+                            <Edit2 className="w-3 h-3 text-zinc-400 hover:text-white" strokeWidth={1.5} />
+                          </button>
+                        )}
                       </h3>
                     )}
                     <div className="text-xs font-medium text-zinc-400 tabular-nums">
