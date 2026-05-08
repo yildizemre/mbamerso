@@ -37,7 +37,7 @@ export const YELLOW_FOR_SUSPENSION = 4;
 /** Futbol: bu kadar kırmızı kart = 1 maç men (en az 1 yeter) */
 export const RED_FOR_SUSPENSION = 1;
 const LEAGUE_START_DATE = new Date(2026, 4, 11); // 11 Mayıs 2026
-const FOOTBALL_MATCH_DAY_OFFSETS = [0, 1, 2] as const; // Salı, Çarşamba, Perşembe
+const MATCH_DAY_OFFSETS = [1, 2, 3] as const; // Sali, Carsamba, Persembe
 
 function trDate(d: Date): string {
   return d.toLocaleDateString('tr-TR');
@@ -49,10 +49,10 @@ function roundDate(round: number): string {
   return trDate(d);
 }
 
-function footballMatchDate(round: number, matchIdx: number): string {
+function matchDate(round: number, matchIdx: number): string {
   const d = new Date(LEAGUE_START_DATE);
   d.setDate(
-    LEAGUE_START_DATE.getDate() + (round - 1) * 7 + FOOTBALL_MATCH_DAY_OFFSETS[matchIdx % 3]
+    LEAGUE_START_DATE.getDate() + (round - 1) * 7 + MATCH_DAY_OFFSETS[matchIdx % 3]
   );
   return trDate(d);
 }
@@ -242,11 +242,10 @@ export default function LeaguePage() {
               iç/dış saha ayrımı yok). Tüm branşlarda aynı lig fikstürü. Skorları haftaya göre girin;
               puan tablosu güncellenir.
             </p>
-            {isFutbol && (
-              <p className="mt-1 text-xs text-zinc-500">
-                Futbol maç günleri: <strong className="text-zinc-300">Salı - Çarşamba - Perşembe</strong>
-              </p>
-            )}
+            <p className="mt-1 text-xs text-zinc-500">
+              Mac gunleri (tum branslar):{' '}
+              <strong className="text-zinc-300">Sali - Carsamba - Persembe</strong>
+            </p>
             <p className="mt-1 text-xs text-zinc-500">
               Lig başlangıcı: <strong className="text-zinc-300">{trDate(LEAGUE_START_DATE)}</strong>
             </p>
@@ -335,7 +334,7 @@ export default function LeaguePage() {
                           nameHi={teamName(teams, hi)}
                           loScore={cur?.lo ?? ''}
                           hiScore={cur?.hi ?? ''}
-                          dateLabel={isFutbol ? footballMatchDate(fr.round, matchIdx) : undefined}
+                          dateLabel={matchDate(fr.round, matchIdx)}
                           onSave={(a, b) => setMatchScore(lo, hi, a, b)}
                         />
                       );
