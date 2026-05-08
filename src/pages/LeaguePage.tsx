@@ -36,7 +36,7 @@ import KnockoutSection from '../components/KnockoutSection';
 export const YELLOW_FOR_SUSPENSION = 4;
 /** Futbol: bu kadar kırmızı kart = 1 maç men (en az 1 yeter) */
 export const RED_FOR_SUSPENSION = 1;
-const LEAGUE_START_DATE = new Date(2026, 4, 5); // 5 Mayıs 2026
+const LEAGUE_START_DATE = new Date(2026, 4, 11); // 11 Mayıs 2026
 const FOOTBALL_MATCH_DAY_OFFSETS = [0, 1, 2] as const; // Salı, Çarşamba, Perşembe
 
 function trDate(d: Date): string {
